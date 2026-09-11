@@ -64,6 +64,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "game_version": app.config["GAME_VERSION"],
             "game_version_label": app.config["GAME_VERSION_LABEL"],
             "github_repo_url": app.config["GITHUB_REPO_URL"],
+            "site_repo_url": app.config["SITE_REPO_URL"],
             "now": datetime.now(timezone.utc),
             # 游戏领域常量（卡面渲染用）
             "ranges": RANGES,
