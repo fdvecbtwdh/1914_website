@@ -152,7 +152,7 @@ table td, table th { border: 1px solid var(--line); padding: .35em .7em; }
 
 /* ---------- 卡牌预览（游戏中真实字段 → 网站卡面） ---------- */
 .gcard {
-  width: 220px; border-radius: 10px; position: relative; overflow: hidden;
+  width: 100%; max-width: 220px; border-radius: 10px; position: relative; overflow: hidden;
   background: linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
   color: var(--ink); border: 3px solid var(--copper);
   box-shadow: 0 4px 14px rgba(0,0,0,.45), inset 0 0 40px rgba(120,90,40,.18);
@@ -216,9 +216,9 @@ table td, table th { border: 1px solid var(--line); padding: .35em .7em; }
   font-size: .72rem; letter-spacing: .08em;
 }
 .gcard-footer .nation { text-transform: uppercase; }
-.gcard-lg { width: 300px; }
+.gcard-lg { width: 100%; max-width: 300px; }
 .gcard-lg .gcard-art { height: 170px; }
-.gcard-sm { width: 172px; font-size: .92rem; }
+.gcard-sm { width: 100%; max-width: 172px; font-size: .92rem; }
 .gcard-sm .gcard-art { height: 88px; }
 .gcard-sm .gcard-name { font-size: .95rem; }
 
@@ -481,10 +481,34 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
 .empty-state .icon { font-size: 2.2rem; display: block; margin-bottom: 8px; opacity: .6; }
 
 /* ---------- 移动端 ---------- */
+.menu-toggle { display: none; }
 @media (max-width: 760px) {
   .header-inner { gap: 12px; height: auto; flex-wrap: wrap; padding: 8px 14px; }
-  .main-nav { order: 3; width: 100%; overflow-x: auto; }
+  /* 右上角 ☰ 按钮：竖向抽屉菜单开关 */
+  .menu-toggle {
+    display: inline-block; margin-left: auto;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--brass-bright);
+    font-size: 1.25rem; line-height: 1; border-radius: 4px; padding: 5px 12px; cursor: pointer;
+  }
+  /* 默认收起导航与用户操作区，点 ☰ 后竖向展开 */
+  .main-nav, .header-actions { display: none; }
+  .site-header.open .main-nav,
+  .site-header.open .header-actions {
+    display: flex; flex-direction: column; align-items: stretch;
+    width: 100%; gap: 0;
+  }
+  .site-header.open .main-nav { order: 3; border-top: 1px solid var(--line-soft); }
+  .site-header.open .main-nav a { display: block; width: 100%; text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line-soft); }
+  .site-header.open .header-actions { order: 4; padding-top: 10px; gap: 8px; }
+  .site-header.open .header-actions .username,
+  .site-header.open .header-actions .btn { text-align: center; padding: 9px 12px; }
+  .site-header.open .header-actions form { display: block; }
+  .site-header.open .header-actions form button { width: 100%; }
+  .hero { padding: 30px 20px 26px; }
   .hero h1 { font-size: 2.2rem; }
   html { font-size: 14px; }
-  .card-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+  .card-grid.view-compact { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
+  /* 后台表格小屏横向滚动，不再挤压重叠 */
+  table.data { display: block; overflow-x: auto; }
 }

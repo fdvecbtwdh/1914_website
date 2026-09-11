@@ -185,6 +185,32 @@
     });
   });
 
+  /* ---------- 移动端抽屉菜单 ---------- */
+  var menuToggle = document.getElementById("menu-toggle");
+  if (menuToggle) {
+    var header = document.querySelector(".site-header");
+    menuToggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      header.classList.toggle("open");
+      menuToggle.textContent = header.classList.contains("open") ? "✕" : "☰";
+    });
+    // 点击站点链接后自动收起
+    header.addEventListener("click", function (e) {
+      var link = e.target.closest("a");
+      if (link && header.classList.contains("open")) {
+        header.classList.remove("open");
+        menuToggle.textContent = "☰";
+      }
+    });
+    // 点击页面其他区域收起
+    document.addEventListener("click", function (e) {
+      if (header.classList.contains("open") && !header.contains(e.target)) {
+        header.classList.remove("open");
+        menuToggle.textContent = "☰";
+      }
+    });
+  }
+
   /* ---------- 后台批量操作：全选 / 计数 / 提交确认 ---------- */
   document.querySelectorAll("form[id$='-batch']").forEach(function (form) {
     var selectAll = form.querySelector("#select-all");
