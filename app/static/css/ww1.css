@@ -526,4 +526,9 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .card-grid.view-compact { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
   /* 后台表格小屏横向滚动，不再挤压重叠 */
   table.data { display: block; overflow-x: auto; }
+  /* 状态页：窄屏时标签+数值一行，进度条独占下一行全宽 */
+  .stat-line { flex-wrap: wrap; }
+  .stat-line .s-label { flex: 1; font-size: .92rem; }
+  .stat-line .s-val { width: auto; max-width: 55%; text-align: right; }
+  .stat-line .s-bar { flex-basis: 100%; order: 3; height: 14px; }
 }
