@@ -22,14 +22,17 @@
         <tr><td>运行环境</td><td>Python {{ web.python }} · {{ web.server }}</td></tr>
         <tr><td>网站版本</td><td class="mono">v{{ web.app_version }}</td></tr>
         <tr><td>数据库</td><td>SQLite（{{ web.db }}{% if web.db == 'ok' %} · {{ web.db_size_mb }} MB{% endif %}）</td></tr>
-        <tr><td>已运行</td><td id="web-uptime">{{ (web.uptime_sec // 86400) }} 天 {{ ((web.uptime_sec % 86400) // 3600) }} 小时 {{ ((web.uptime_sec % 3600) // 60) }} 分钟</td></tr>
+        <tr><td>CPU 配置</td><td id="web-cpu-model">{{ web.cpu_model }}（{{ web.cpu_cores }} 逻辑核心）</td></tr>
+        <tr><td>内存配置</td><td id="web-mem-total">{{ web.mem_total_gb }} GB</td></tr>
+        <tr><td>系统运行时间</td><td id="web-uptime">{{ (web.uptime_sec // 86400) }} 天 {{ ((web.uptime_sec % 86400) // 3600) }} 小时 {{ ((web.uptime_sec % 3600) // 60) }} 分钟</td></tr>
+        <tr><td>本次开机</td><td class="mono">{{ web.boot_time }}</td></tr>
       </table>
 
-      <div class="stat-line"><span class="s-label">CPU</span>
+      <div class="stat-line"><span class="s-label">CPU 占用</span>
         <div class="s-bar"><div class="s-fill" id="bar-web-cpu" style="width:{{ web.cpu_pct }}%"></div></div>
-        <span class="s-val" id="val-web-cpu">{{ web.cpu_pct }}%（{{ web.cpu_cores }} 核）</span>
+        <span class="s-val" id="val-web-cpu">{{ web.cpu_pct }}%</span>
       </div>
-      <div class="stat-line"><span class="s-label">内存</span>
+      <div class="stat-line"><span class="s-label">内存占用</span>
         <div class="s-bar"><div class="s-fill" id="bar-web-mem" style="width:{{ web.mem_pct }}%"></div></div>
         <span class="s-val" id="val-web-mem">{{ web.mem_used_gb }} / {{ web.mem_total_gb }} GB（{{ web.mem_pct }}%）</span>
       </div>
@@ -120,9 +123,11 @@
     fetch("/api/status", { credentials: "same-origin" }).then(r => r.json()).then(function (s) {
       var w = s.web, g = s.game;
       setText("web-os", w.os);
+      setText("web-cpu-model", w.cpu_model + "（" + w.cpu_cores + " 逻辑核心）");
+      setText("web-mem-total", w.mem_total_gb + " GB");
       setText("web-uptime", fmtUptime(w.uptime_sec));
       setBar("bar-web-cpu", w.cpu_pct);
-      setText("val-web-cpu", w.cpu_pct + "%（" + w.cpu_cores + " 核）");
+      setText("val-web-cpu", w.cpu_pct + "%");
       setBar("bar-web-mem", w.mem_pct);
       setText("val-web-mem", w.mem_used_gb + " / " + w.mem_total_gb + " GB（" + w.mem_pct + "%）");
       setBar("bar-web-disk", w.disk_pct);

@@ -17,6 +17,33 @@ bp = Blueprint("serverstatus", __name__)
 
 GAME_HEARTBEAT_TTL = 60  # 秒，超过视为游戏服不可用
 _gpu_cache = {"at": 0.0, "data": None}
+_cpu_model_cache = None
+
+
+def _cpu_model() -> str:
+    """CPU 型号（缓存，基本不变）。Windows 读注册表，其他平台读 /proc/cpuinfo。"""
+    global _cpu_model_cache
+    if _cpu_model_cache:
+        return _cpu_model_cache
+    model = ""
+    try:
+        if platform.system() == "Windows":
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as key:
+                model = str(winreg.QueryValueEx(key, "ProcessorNameString")[0]).strip()
+        else:
+            with open("/proc/cpuinfo", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if "model name" in line:
+                        model = line.split(":", 1)[1].strip()
+                        break
+    except Exception:
+        pass
+    if not model:
+        model = platform.processor() or "未知"
+    _cpu_model_cache = re.sub(r"\s+", " ", model)
+    return _cpu_model_cache
 
 
 def _gpu_status(refresh=False) -> dict:
@@ -61,13 +88,17 @@ def _web_status() -> dict:
         db_ok = False
     vm = psutil.virtual_memory()
     disk = psutil.disk_usage(str(cfg["UPLOAD_DIR"]))
+    boot = psutil.boot_time()
     return {
         "status": "up",
         "os": platform.platform(),
         "python": platform.python_version(),
         "server": "waitress",
         "app_version": cfg["GAME_VERSION"],
-        "uptime_sec": int(time.time() - current_app.extensions["started_at"]),
+        # 系统开机时长（非网站进程启动时长）
+        "uptime_sec": int(time.time() - psutil.boot_time()),
+        "boot_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(boot)),
+        "cpu_model": _cpu_model(),
         "cpu_pct": psutil.cpu_percent(interval=None),
         "cpu_cores": psutil.cpu_count(logical=True),
         "mem_used_gb": round((vm.total - vm.available) / 1024 ** 3, 2),
