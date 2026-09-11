@@ -7,6 +7,7 @@
 页面与 API 只读快照——访问量大小不影响采集频率。
 """
 import hmac
+import json
 import platform
 import re
 import subprocess
@@ -23,8 +24,52 @@ GAME_HEARTBEAT_TTL = 60  # 秒，超过视为游戏服不可用
 SAMPLE_INTERVAL = 30     # 秒，后台采样周期
 _gpu_cache = {"at": 0.0, "data": None}
 _cpu_model_cache = None
+_mem_config_cache = None
 _snapshot_lock = threading.Lock()
 _snapshot = {"at": 0.0, "web": None}
+
+
+def _memory_config(fallback_total_gb) -> str:
+    """内存条配置，如 "Samsung DDR5 4800MHz 16GB*2"；读取一次永久缓存。"""
+    global _mem_config_cache
+    if _mem_config_cache:
+        return _mem_config_cache
+    config = ""
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_PhysicalMemory | "
+             "Select-Object Manufacturer,PartNumber,Capacity,Speed,ConfiguredClockSpeed,"
+             "SMBIOSMemoryType | ConvertTo-Json -Compress"],
+            capture_output=True, text=True, timeout=20)
+        if out.returncode == 0 and out.stdout.strip():
+            data = json.loads(out.stdout)
+            if isinstance(data, dict):
+                data = [data]
+            ddr_names = {20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 34: "DDR5"}
+            groups = {}
+            for d in data:
+                manu = (d.get("Manufacturer") or "").strip() or "Unknown"
+                cap = int(d.get("Capacity") or 0)
+                if cap <= 0:
+                    continue
+                gb = int(round(cap / 1024 ** 3))
+                speed = d.get("ConfiguredClockSpeed") or d.get("Speed")
+                ddr = ddr_names.get(d.get("SMBIOSMemoryType"), "DDR")
+                speed_s = f"{speed}MHz " if speed else ""
+                key = (manu, ddr, speed_s, gb)
+                groups[key] = groups.get(key, 0) + 1
+            parts = []
+            for (manu, ddr, speed_s, gb), n in groups.items():
+                cap_s = f"{gb}GB" + (f"*{n}" if n > 1 else "")
+                parts.append(re.sub(r"\s+", " ", " ".join(x for x in (manu, ddr, speed_s, cap_s) if x)))
+            config = " + ".join(parts)
+    except Exception:
+        config = ""
+    if not config:
+        config = f"RAM {fallback_total_gb} GB"
+    _mem_config_cache = config
+    return config
 
 
 def _cpu_model() -> str:
@@ -111,7 +156,6 @@ def _collect() -> dict:
         db_ok = False
     vm = psutil.virtual_memory()
     disk = psutil.disk_usage(str(cfg["UPLOAD_DIR"]))
-    boot = psutil.boot_time()
     return {
         "status": "up",
         "os": platform.platform(),
@@ -120,8 +164,8 @@ def _collect() -> dict:
         "app_version": cfg["GAME_VERSION"],
         # 系统开机时长（非网站进程启动时长）
         "uptime_sec": int(time.time() - psutil.boot_time()),
-        "boot_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(boot)),
         "cpu_model": _cpu_model(),
+        "mem_config": _memory_config(round(vm.total / 1024 ** 3, 2)),
         "cpu_pct": psutil.cpu_percent(interval=None),
         "cpu_cores": psutil.cpu_count(logical=True),
         "mem_used_gb": round((vm.total - vm.available) / 1024 ** 3, 2),
