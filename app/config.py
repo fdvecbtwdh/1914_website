@@ -59,6 +59,10 @@ class Config:
     GITHUB_SYNC_ENABLED = _bool("GITHUB_SYNC_ENABLED", "1")
     GITHUB_SYNC_INTERVAL = int(os.environ.get("GITHUB_SYNC_INTERVAL", "30"))
 
+    # --- 游戏服务器心跳（状态页 /status 预留接口） ---
+    # 设置后，游戏服务端按 docs/web-integration.md 协议推送心跳；留空则状态页显示"不可用"
+    GAME_SERVER_TOKEN = os.environ.get("GAME_SERVER_TOKEN", "")
+
     # --- 会话 / 安全 ---
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

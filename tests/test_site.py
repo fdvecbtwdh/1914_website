@@ -914,5 +914,51 @@ class TestGameCardSync(Base):
                     self.assertIn(ability_name(token), ABILITIES, token)
 
 
+class TestServerStatus(Base):
+    def test_status_page(self):
+        """/status 公开访问：网站区有真实指标，游戏服区显示不可用。"""
+        r = self.client.get("/status")
+        self.assertEqual(r.status_code, 200)
+        html = r.get_data(as_text=True)
+        self.assertIn("网站服务器", html)
+        self.assertIn("游戏服务器", html)
+        self.assertIn("不可用", html)
+        self.assertIn("badge-olive", html)      # web 在线
+
+    def test_status_json(self):
+        data = self.client.get("/api/status").get_json()
+        self.assertEqual(data["web"]["status"], "up")
+        self.assertEqual(data["web"]["db"], "ok")
+        self.assertIn("uptime_sec", data["web"])
+        self.assertFalse(data["game"]["available"])
+        self.assertIsNone(data["game"]["matches"])
+
+    def test_heartbeat_disabled_without_token(self):
+        r = self.client.post("/api/game-server/heartbeat",
+                             headers={"X-Game-Token": "x"}, json={"status": "online"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_heartbeat_flow(self):
+        self.app.config["GAME_SERVER_TOKEN"] = "gsec"
+        # 错误 token
+        r = self.client.post("/api/game-server/heartbeat",
+                             headers={"X-Game-Token": "wrong"}, json={"status": "online"})
+        self.assertEqual(r.status_code, 403)
+        # 正确 token → 状态点亮
+        r = self.client.post("/api/game-server/heartbeat",
+                             headers={"X-Game-Token": "gsec"},
+                             json={"status": "online", "matches": 3, "players": 8,
+                                   "cpu": 42.5, "mem": 61, "version": "0.1.0"})
+        self.assertEqual(r.status_code, 200)
+        data = self.client.get("/api/status").get_json()
+        self.assertTrue(data["game"]["available"])
+        self.assertEqual(data["game"]["matches"], 3)
+        self.assertEqual(data["game"]["players"], 8)
+        self.assertEqual(data["game"]["status"], "在线")
+        html = self.client.get("/status").get_data(as_text=True)
+        self.assertIn("在线", html)
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

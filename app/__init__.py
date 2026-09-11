@@ -19,6 +19,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     db.init_db(app.config["DB_PATH"])
     app.teardown_appcontext(db.close_db)
+    app.extensions["started_at"] = time.time()
 
     # ---- 蓝图 ----
     from . import cards as cards_bp_mod
@@ -28,6 +29,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from . import misc as misc_bp_mod
     from . import api as api_bp_mod
     from . import nav as nav_bp_mod
+    from . import serverstatus as ss_bp_mod
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cards_bp_mod.bp)
@@ -37,6 +39,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(misc_bp_mod.bp)
     app.register_blueprint(api_bp_mod.bp)
     app.register_blueprint(nav_bp_mod.bp)
+    app.register_blueprint(ss_bp_mod.bp)
 
     # ---- 模板全局 ----
     from .gameconstants import (RANGES, ABILITIES, NATIONS, UNIT_CLASSES,
