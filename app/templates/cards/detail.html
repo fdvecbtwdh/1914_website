@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% block title %}{{ card.name }} — 1914 卡牌详情{% endblock %}
+{% block meta_description %}{{ card.name }}（{{ card.class_label }} · {{ card.rarity_label }}卡）：{{ card.flavor_text or card.description|excerpt(120) }}{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block content %}
+<div class="container">
+  <nav class="breadcrumb"><a href="/cards">卡牌社区</a> / {{ card.name }}
+    {% if card.source == 'official' %} <span class="badge badge-brass">官方</span>{% else %} <span class="badge">玩家自制</span>{% endif %}
+    {% if card.status == 'hidden' %} <span class="badge badge-red">已隐藏</span>{% endif %}
+  </nav>
+
+  <div class="detail-layout">
+    <div class="detail-side">
+      {{ gcard(card, size='lg', link=False) }}
+      <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:14px">
+        <div class="vote-inline">
+          <button class="vote-btn {{ 'voted' if my_vote else '' }}" data-type="card" data-id="{{ card.id }}"
+                  data-require-login="{{ 0 if current_user else 1 }}">▲ 点赞</button>
+          <span class="vote-count" data-type="card" data-id="{{ card.id }}">{{ card.vote_count }}</span>
+        </div>
+        <span style="color:var(--muted)">💬 {{ card.comment_count }} · 👁 {{ card.view_count }}</span>
+      </div>
+      <div style="text-align:center;margin-top:12px">
+        {% set is_admin_user = current_user and current_user['role'] == 'admin' %}
+        {% if current_user and current_user['id'] != card.author_id %}
+        <button class="report-btn btn btn-sm" data-type="card" data-id="{{ card.id }}">举报此卡牌</button>
+        {% endif %}
+        {% if card.source == 'official' %}
+          {% if is_admin_user %}<a class="btn btn-sm" href="/card/{{ card.id }}/edit">编辑（管理员）</a>{% endif %}
+        {% else %}
+          {% if current_user and current_user['id'] == card.author_id %}
+            <a class="btn btn-sm" href="/card/{{ card.id }}/edit">编辑</a>
+          {% elif is_moderator %}
+            <a class="btn btn-sm" href="/card/{{ card.id }}/edit">管理编辑</a>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div>
+      <h1 style="margin:0 0 4px">{{ card.name }}</h1>
+      <p style="color:var(--muted);margin:0 0 18px">
+        {% if card.author_name %}投稿者 <a href="/u/{{ card.author_name }}">{{ card.author_name }}</a> · {% endif %}
+        发布于 {{ card.created_at|ago }}
+        {% if card.game_id %} · 游戏ID <span class="mono">{{ card.game_id }}</span>{% endif %}
+      </p>
+
+      {% if card.labels %}
+      <p style="margin-bottom:16px">
+        {% for l in card.labels %}<a href="/cards?tag={{ l.name }}"><span class="label-chip" style="background:{{ l.color }}">{{ l.name }}</span></a>{% endfor %}
+      </p>
+      {% endif %}
+
+      <div class="panel">
+        <h2>⚔ 战场属性</h2>
+        <table class="meta-table">
+          <tr><td>类型</td><td>{{ card.type_label }}{% if card.unit_class %} · {{ card.class_label }}{% endif %}</td></tr>
+          <tr><td>生产费用</td><td>⚙ {{ card.cost_g }} 经济 (G)</td></tr>
+          <tr><td>部署费用</td><td>✦ {{ card.cost_k }} 指挥点 (K)</td></tr>
+          <tr><td>攻击 / 防御</td><td><b style="color:#e08a7a">{{ card.attack }}</b> / <b style="color:#8fb0d8">{{ card.defense }}</b></td></tr>
+          <tr><td>视野范围</td><td>{{ ranges.get(card.vision_range, card.vision_range or '—') }}</td></tr>
+          <tr><td>攻击范围</td><td>{{ ranges.get(card.attack_range, card.attack_range or '—') }}</td></tr>
+          <tr><td>稀有度</td><td>{{ card.rarity_label }}卡</td></tr>
+          {% if card.nation and card.nation != 'neutral' %}<tr><td>阵营</td><td>{{ card.nation_label }}</td></tr>{% endif %}
+        </table>
+      </div>
+
+      {% if card.abilities_list %}
+      <div class="panel">
+        <h2>✦ 词条能力</h2>
+        <ul style="margin:0;padding-left:18px">
+          {% for ab in card.abilities_list %}
+          {% set base = ab.rstrip('0123456789') %}
+          <li><b style="color:var(--brass-bright)">{{ ab }}</b> — {{ ability_tips.get(base, ability_tips.get(ab, '')) }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if card.flavor_text %}
+      <div class="panel">
+        <h2>📜 风味文字</h2>
+        <p style="font-family:var(--font-typewriter);color:var(--text-dim);margin:0">“{{ card.flavor_text }}”</p>
+      </div>
+      {% endif %}
+
+      {% if card.description %}
+      <div class="panel">
+        <h2>📖 详细描述</h2>
+        <div class="md-body">{{ card.description|md|safe }}</div>
+      </div>
+      {% endif %}
+
+      {% set target_type = 'card' %}{% set target_id = card.id %}
+      {% include "_comments.html" with context %}
+    </div>
+  </div>
+</div>
+{% endblock %}

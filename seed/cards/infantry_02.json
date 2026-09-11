@@ -1,0 +1,17 @@
+{
+  "id": "infantry_02",
+  "name": "近卫步兵",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "infantry",
+  "cost_g": 40,
+  "cost_k": 1,
+  "attack": 3,
+  "defense": 5,
+  "vision_range": "adjacent_4",
+  "attack_range": "adjacent_4",
+  "abilities": ["守护"],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "守护阵线，一步不退。"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "tank_02",
+  "name": "装甲坦克",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "tank",
+  "cost_g": 80,
+  "cost_k": 3,
+  "attack": 5,
+  "defense": 6,
+  "vision_range": "adjacent_8_forward",
+  "attack_range": "adjacent_8",
+  "abilities": ["坚守", "补给"],
+  "rarity": "silver",
+  "art": "",
+  "flavor_text": "移动的堡垒，兼具维修能力。"
+}

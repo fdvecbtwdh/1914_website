@@ -1,0 +1,17 @@
+{
+  "id": "cavalry_02",
+  "name": "哥萨克骑兵",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "cavalry",
+  "cost_g": 50,
+  "cost_k": 2,
+  "attack": 3,
+  "defense": 3,
+  "vision_range": "adjacent_4",
+  "attack_range": "adjacent_4",
+  "abilities": ["冲锋", "收缴"],
+  "rarity": "silver",
+  "art": "",
+  "flavor_text": "来去如风，劫掠如火。"
+}

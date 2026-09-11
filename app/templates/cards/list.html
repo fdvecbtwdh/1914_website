@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% block title %}卡牌社区 — {{ site_name }}{% endblock %}
+{% block meta_description %}浏览、搜索 1914 全部单位卡与指令卡，参与玩家卡牌投稿与讨论。{% endblock %}
+
+{# 视图切换链接：保留当前筛选参数，仅替换 view #}
+{% macro view_link(v, icon, label) -%}
+<a href="/cards?{% for k in request.args %}{% if k != 'view' %}{{ k }}={{ request.args[k] }}&amp;{% endif %}{% endfor %}view={{ v }}"
+   class="{{ 'active' if view == v }}" title="{{ label }}视图">{{ icon }} {{ label }}</a>
+{%- endmacro %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>卡牌社区</h1>
+    <span class="sub">共 {{ total }} 张卡牌 · 与游戏数据同构</span>
+    {% if current_user %}
+      <a class="btn btn-brass" href="/cards/new" style="margin-left:auto">＋ 投稿卡牌</a>
+    {% else %}
+      <a class="btn btn-brass" href="/login?next=/cards/new" style="margin-left:auto">登录后投稿卡牌</a>
+    {% endif %}
+  </div>
+
+  <div class="tab-row">
+    <a href="/cards?sort={{ sort }}" {% if not source %}class="active"{% endif %}>全部</a>
+    <a href="/cards?source=official&amp;sort={{ sort }}" {% if source == 'official' %}class="active"{% endif %}>🎖 官方卡牌</a>
+    <a href="/cards?source=community&amp;sort={{ sort }}" {% if source == 'community' %}class="active"{% endif %}>✎ 玩家自制</a>
+  </div>
+
+  <form class="filter-bar" method="get" action="/cards">
+    <input type="search" name="q" placeholder="搜索卡牌名称 / 描述 / 风味文字…" value="{{ q }}">
+    <select name="type">
+      <option value="">全部类型</option>
+      {% for k, v in card_types.items() %}<option value="{{ k }}" {% if card_type == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <select name="class">
+      <option value="">全部兵种</option>
+      {% for k, v in unit_classes.items() %}<option value="{{ k }}" {% if unit_class == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <select name="rarity">
+      <option value="">全部稀有度</option>
+      {% for k, v in rarities.items() %}<option value="{{ k }}" {% if rarity == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
+    {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
+    <button class="btn btn-sm" type="submit">筛选</button>
+    <span style="flex:1"></span>
+    <select name="sort" onchange="this.form.submit()">
+      <option value="latest" {% if sort == 'latest' %}selected{% endif %}>最新发布</option>
+      <option value="hot" {% if sort == 'hot' %}selected{% endif %}>最多投票</option>
+      <option value="discussed" {% if sort == 'discussed' %}selected{% endif %}>最多评论</option>
+    </select>
+    <span class="view-toggle" style="margin-left:auto">
+      {{ view_link('grid', '▦', '卡片') }}
+      {{ view_link('compact', '▣', '图标') }}
+      {{ view_link('list', '☰', '列表') }}
+    </span>
+  </form>
+
+  {% if tag %}
+  <p style="margin:0 0 14px;color:var(--text-dim)">筛选标签：
+    <a href="/cards?sort={{ sort }}"><span class="label-chip" style="background:var(--olive)">{{ tag }} ✕</span></a></p>
+  {% endif %}
+
+  {% if cards %}
+  {% if view == 'compact' %}
+  {# 图标墙：仅卡面，无元信息，网格更密 #}
+  <div class="card-grid view-compact">
+    {% for card in cards %}{{ gcard(card, size='sm') }}{% endfor %}
+  </div>
+  {% elif view == 'list' %}
+  {# 列表视图：小图标 + 关键数据一行一卡 #}
+  <div class="card-rows">
+    {% for card in cards %}
+    <div class="card-row">
+      <a class="mini-art" href="/card/{{ card.id }}" title="{{ card.name }}">
+        {% if card.art_path %}<img src="{{ card.art_path }}" alt="{{ card.name }}" loading="lazy">
+        {% else %}<span>{{ class_icons.get(card.unit_class, '⚔') }}</span>{% endif %}
+      </a>
+      <div class="grow">
+        <div>
+          <a class="row-title" href="/card/{{ card.id }}">{{ card.name }}</a>
+          {% if card.source == 'official' %}<span class="badge badge-brass">官方</span>{% else %}<span class="badge">自制</span>{% endif %}
+          <span class="badge">{{ card.rarity_label }}卡</span>
+          <span class="badge">{{ card.class_label }}</span>
+        </div>
+        <div class="row-sub">
+          ⚙{{ card.cost_g }} ✦{{ card.cost_k }} · 攻{{ card.attack }}/防{{ card.defense }}
+          {% if card.abilities_list %} · <span style="color:var(--brass-bright)">{{ card.abilities_list|join('/') }}</span>{% endif %}
+          {% if card.flavor_text %} · “{{ card.flavor_text }}”{% endif %}
+        </div>
+      </div>
+      <div class="card-row-side">
+        <span class="vote-inline">
+          <button class="vote-btn {{ 'voted' if card.my_vote else '' }}" data-type="card" data-id="{{ card.id }}"
+                  data-require-login="{{ 0 if current_user else 1 }}" title="投票">▲</button>
+          <span class="vote-count" data-type="card" data-id="{{ card.id }}">{{ card.vote_count }}</span>
+        </span>
+        <span>💬 {{ card.comment_count }}</span>
+        <span class="row-sub"><a href="/u/{{ card.author_name or '?' }}">{{ card.author_name or '官方' }}</a> · {{ card.created_at|ago }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  {# 卡片视图（默认）：卡面 + 元信息 #}
+  <div class="card-grid">
+    {% for card in cards %}
+    <div>
+      {{ gcard(card) }}
+      <div class="card-meta">
+        {% if card.source == 'official' %}<span class="badge badge-brass">官方</span>{% else %}<span class="badge">自制</span>{% endif %}
+        <span>👤 <a href="/u/{{ card.author_name or '?' }}">{{ card.author_name or '官方' }}</a></span>
+        <span>{{ card.created_at|ago }}</span>
+        <span class="vote-inline">
+          <button class="vote-btn {{ 'voted' if card.my_vote else '' }}" data-type="card" data-id="{{ card.id }}"
+                  data-require-login="{{ 0 if current_user else 1 }}" title="投票">▲</button>
+          <span class="vote-count" data-type="card" data-id="{{ card.id }}">{{ card.vote_count }}</span>
+        </span>
+        <span>💬 {{ card.comment_count }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {%- for p in range(1, pages + 1) -%}
+      {%- if p == page -%}
+        <span class="current">{{ p }}</span>
+      {%- elif p <= 3 or p > pages - 2 or (p - page)|abs <= 2 -%}
+        <a href="/cards?{% for k in request.args %}{% if k != 'page' %}{{ k }}={{ request.args[k] }}&amp;{% endif %}{% endfor %}page={{ p }}">{{ p }}</a>
+      {%- elif (p - page)|abs == 3 -%}
+        <span>…</span>
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty-state panel">
+    <span class="icon">🎖</span>
+    没有找到匹配的卡牌。
+    {% if q %}<p>试试其他关键词，或 <a href="/cards">查看全部卡牌</a>。</p>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

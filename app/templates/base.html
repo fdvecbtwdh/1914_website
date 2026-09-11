@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ site_name }} — WW1 卡牌对战游戏官方网站{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ site_description }}{% endblock %}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% block og %}
+  <meta property="og:site_name" content="{{ site_name }}.fun">
+  <meta property="og:title" content="{% block og_title %}{{ site_name }} — WW1 卡牌对战游戏{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{{ self.meta_description() }}{% endblock %}">
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+  <meta property="og:url" content="{{ site_url }}{{ request.path }}">
+  <meta property="og:image" content="{{ site_url }}/static/img/og-cover.png">
+  {% endblock %}
+  <link rel="canonical" href="{{ site_url }}{{ request.path }}">
+  <link rel="icon" href="/static/img/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/static/css/ww1.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="logo" href="/index"><span class="emblem">✠</span>1914<span class="fun">.fun</span></a>
+    <nav class="main-nav">
+      <a href="/index" {% if request.path == '/index' %}class="active"{% endif %}>首页</a>
+      <a href="/about" {% if request.path == '/about' %}class="active"{% endif %}>游戏</a>
+      <a href="/cards" {% if request.path.startswith('/card') %}class="active"{% endif %}>卡牌</a>
+      <a href="/issues" {% if request.path.startswith('/issue') %}class="active"{% endif %}>Bug / Issues</a>
+      <a href="/search" {% if request.path == '/search' %}class="active"{% endif %}>搜索</a>
+    </nav>
+    <div class="header-actions">
+      {% if current_user %}
+        <a class="username" href="/u/{{ current_user['username'] }}">{{ current_user['username'] }}</a>
+        {% if current_user['role'] == 'admin' %}<a class="btn btn-sm" href="/admin">后台</a>{% endif %}
+        <form method="post" action="/logout" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm" type="submit">退出</button>
+        </form>
+      {% else %}
+        <a class="btn btn-sm" href="/login">登录</a>
+        <a class="btn btn-sm btn-brass" href="/register">注册</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flashes">
+    {% for category, message in messages %}
+    <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div>
+      <b style="font-family:var(--font-display);color:var(--brass)">1914.fun</b>
+      — WW1 卡牌对战游戏官方社区 · 当前版本 v{{ game_version }}（{{ game_version_label }}）
+    </div>
+    <div>
+      <a href="/about">关于游戏</a> ·
+      <a href="/cards">卡牌社区</a> ·
+      <a href="/issues">Bug 反馈</a> ·
+      <a href="{{ github_repo_url }}" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="/nav" target="_blank">导航</a> ·
+      <a href="/sitemap.xml">Sitemap</a>
+    </div>
+  </div>
+</footer>
+<script src="/static/js/main.js"></script>
+</body>
+</html>

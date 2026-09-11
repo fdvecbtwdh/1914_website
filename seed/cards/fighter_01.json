@@ -1,0 +1,17 @@
+{
+  "id": "fighter_01",
+  "name": "战斗机",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "fighter",
+  "cost_g": 50,
+  "cost_k": 2,
+  "attack": 4,
+  "defense": 2,
+  "vision_range": "front_3x2",
+  "attack_range": "column_and_neighbors",
+  "abilities": ["防空"],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "制空权是胜利的保障。"
+}

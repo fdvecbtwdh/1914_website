@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}评论管理 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>评论管理</h1><span class="sub">{{ total }} 条</span></div>
+  {% include "_admin_nav.html" %}
+
+  <form class="filter-bar" method="get" action="/admin/comments">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索内容 / 作者用户名…">
+    <select name="target_type">
+      <option value="">全部对象</option>
+      <option value="card" {% if ttype == 'card' %}selected{% endif %}>卡牌评论</option>
+      <option value="issue" {% if ttype == 'issue' %}selected{% endif %}>Issue 评论</option>
+    </select>
+    <select name="state">
+      <option value="">全部状态</option>
+      <option value="active" {% if state == 'active' %}selected{% endif %}>显示中</option>
+      <option value="deleted" {% if state == 'deleted' %}selected{% endif %}>已删除</option>
+    </select>
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if q or ttype or state %}<a class="filter-clear" href="/admin/comments">✕ 清除筛选</a>{% endif %}
+  </form>
+
+  <form method="post" action="/admin/comments/batch{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" id="comments-batch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="batch-bar">
+      <label><input type="checkbox" id="select-all"> 全选</label>
+      <select name="action">
+        <option value="">— 选择批量操作 —</option>
+        <option value="delete">删除</option>
+        <option value="restore">恢复</option>
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">应用到选中</button>
+      <span id="sel-count"></span>
+    </div>
+  </form>
+
+  <table class="data">
+    <tr>
+      <th class="chk"></th>
+      <th>ID</th><th>作者</th><th>对象</th><th>内容</th><th>时间</th><th>操作</th>
+    </tr>
+    {% for c in comments %}
+    <tr>
+      <td class="chk"><input type="checkbox" name="ids" value="{{ c.id }}" form="comments-batch"></td>
+      <td class="mono">{{ c.id }}</td>
+      <td>{{ c.author_name or '已注销' }}</td>
+      <td>{% if c.target_type == 'card' %}<a href="/card/{{ c.target_id }}">卡牌 #{{ c.target_id }}</a>{% else %}<a href="/issue/{{ c.target_id }}">Issue #{{ c.target_id }}</a>{% endif %}</td>
+      <td style="max-width:380px">
+        {% if c.is_deleted %}<span style="color:var(--muted);font-style:italic">（已删除）</span>
+        {% else %}{{ c.body[:120] }}{% if c.body|length > 120 %}…{% endif %}{% endif %}
+      </td>
+      <td class="mono">{{ c.created_at|dt }}</td>
+      <td>
+        <form method="post" action="/admin/comments/{{ c.id }}/action">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if c.is_deleted %}
+          <button class="btn btn-sm" name="action" value="restore">恢复</button>
+          {% else %}
+          <button class="btn btn-sm btn-danger" name="action" value="delete">删除</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/comments?q={{ q|urlencode }}&target_type={{ ttype }}&state={{ state }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{
+  "id": "infantry_01",
+  "name": "步兵",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "infantry",
+  "cost_g": 30,
+  "cost_k": 1,
+  "attack": 3,
+  "defense": 4,
+  "vision_range": "adjacent_4",
+  "attack_range": "adjacent_4",
+  "abilities": [],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "堑壕中的士兵。"
+}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% block title %}搜索“{{ q }}” — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>搜索</h1></div>
+  <form class="filter-bar" method="get" action="/search">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索卡牌、Issue、用户…" style="flex:1" autofocus>
+    <button class="btn btn-primary" type="submit">搜索</button>
+  </form>
+
+  {% if not q %}
+  <div class="empty-state panel"><span class="icon">🔎</span>输入关键词开始搜索：卡牌名称、Issue 内容或用户名。</div>
+  {% endif %}
+
+  {% if q %}
+  <div class="panel">
+    <h2>🎖 卡牌 ({{ cards|length }})</h2>
+    {% if cards %}
+    <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
+      {% for card in cards %}{{ gcard(card, size='sm') }}{% endfor %}
+    </div>
+    <p style="margin:12px 0 0"><a href="/cards?q={{ q|urlencode }}">在卡牌社区中查看更多 →</a></p>
+    {% else %}<div class="empty-state">没有匹配的卡牌</div>{% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>🐞 Issues ({{ issues|length }})</h2>
+    {% for issue in issues %}
+    <div class="issue-row">
+      <span class="status-pill" style="background:{{ {('open'):'#4a9e4a','in_progress':'#c9a227','resolved':'#3a7bbf','closed':'#777777','duplicate':'#9b59b6'}.get(issue.status, '#777777') }}">{{ issue.status }}</span>
+      <div class="grow">
+        <a class="issue-title" href="/issue/{{ issue.id }}">{{ issue.title }}</a>
+        <div class="issue-meta">#{{ issue.id }} · {{ issue.created_at|ago }}</div>
+      </div>
+    </div>
+    {% else %}<div class="empty-state">没有匹配的 Issue</div>{% endfor %}
+    <p style="margin:12px 0 0"><a href="/issues?q={{ q|urlencode }}">在 Issues 中查看更多 →</a></p>
+  </div>
+
+  <div class="panel">
+    <h2>👤 用户 ({{ users|length }})</h2>
+    {% for u in users %}
+    <div class="list-row">
+      <div class="grow">
+        <a class="row-title" href="/u/{{ u.username }}">{{ u.username }}</a>
+        <div class="row-sub">注册于 {{ u.created_at|ago }} · {{ u.card_count }} 张卡牌投稿</div>
+      </div>
+    </div>
+    {% else %}<div class="empty-state">没有匹配的用户</div>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

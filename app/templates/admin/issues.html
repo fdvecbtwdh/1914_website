@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Issue 管理 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>Issue 管理</h1><span class="sub">{{ total }} 个</span></div>
+  {% include "_admin_nav.html" %}
+
+  <div class="tab-row">
+    <a href="/admin/issues" {% if not status and not q and not priority and not author %}class="active"{% endif %}>全部</a>
+    {% for k, v in statuses.items() %}
+    <a href="/admin/issues?status={{ k }}" {% if status == k %}class="active"{% endif %}>{{ v }}</a>
+    {% endfor %}
+  </div>
+
+  <form class="filter-bar" method="get" action="/admin/issues">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索标题 / 内容…">
+    <select name="priority">
+      <option value="">全部优先级</option>
+      {% for k, v in priorities.items() %}<option value="{{ k }}" {% if priority == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <input type="text" name="author" value="{{ author }}" placeholder="按作者用户名…" style="max-width:170px">
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if q or priority or author %}<a class="filter-clear" href="/admin/issues{% if status %}?status={{ status }}{% endif %}">✕ 清除筛选</a>{% endif %}
+  </form>
+
+  <form method="post" action="/admin/issues/batch{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" id="issues-batch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="batch-bar">
+      <label><input type="checkbox" id="select-all"> 全选</label>
+      <select name="action">
+        <option value="">— 选择批量操作 —</option>
+        <option value="set_open">状态设为 Open</option>
+        <option value="set_in_progress">状态设为 In Progress</option>
+        <option value="set_resolved">状态设为 Resolved</option>
+        <option value="set_closed">状态设为 Closed</option>
+        <option value="delete">删除</option>
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">应用到选中</button>
+      <span id="sel-count"></span>
+    </div>
+  </form>
+
+  <table class="data">
+    <tr>
+      <th class="chk"></th>
+      <th>#</th><th>标题</th><th>状态</th><th>优先级</th><th>作者</th><th>更新</th><th>操作</th>
+    </tr>
+    {% for i in issues %}
+    <tr>
+      <td class="chk"><input type="checkbox" name="ids" value="{{ i.id }}" form="issues-batch"></td>
+      <td class="mono">{{ i.id }}</td>
+      <td><a href="/issue/{{ i.id }}">{{ i.title }}</a></td>
+      <td><span class="badge">{{ i.status }}</span></td>
+      <td>{{ priorities.get(i.priority, i.priority) }}</td>
+      <td>{{ i.author_name or '—' }}</td>
+      <td class="mono">{{ i.updated_at|dt }}</td>
+      <td>
+        <form method="post" action="/admin/issues/{{ i.id }}/action" style="display:flex;gap:6px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="status">
+            {% for k, v in statuses.items() %}
+            <option value="{{ k }}" {% if i.status == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm" name="action" value="status">改状态</button>
+          <button class="btn btn-sm btn-danger" name="action" value="delete"
+                  onclick="return confirm('确定删除 Issue #{{ i.id }}？')">删除</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/issues?status={{ status }}&q={{ q|urlencode }}&priority={{ priority }}&author={{ author|urlencode }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}举报处理 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>举报处理</h1><span class="sub">{{ total }} 条</span></div>
+  {% include "_admin_nav.html" %}
+
+  <form class="filter-bar" method="get" action="/admin/reports">
+    <select name="status">
+      <option value="">全部状态</option>
+      <option value="open" {% if status == 'open' %}selected{% endif %}>待处理</option>
+      <option value="resolved" {% if status == 'resolved' %}selected{% endif %}>已处理</option>
+      <option value="dismissed" {% if status == 'dismissed' %}selected{% endif %}>已忽略</option>
+    </select>
+    <select name="target_type">
+      <option value="">全部对象类型</option>
+      <option value="card" {% if ttype == 'card' %}selected{% endif %}>卡牌</option>
+      <option value="issue" {% if ttype == 'issue' %}selected{% endif %}>Issue</option>
+      <option value="comment" {% if ttype == 'comment' %}selected{% endif %}>评论</option>
+      <option value="user" {% if ttype == 'user' %}selected{% endif %}>用户</option>
+    </select>
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if status or ttype %}<a class="filter-clear" href="/admin/reports">✕ 清除筛选</a>{% endif %}
+  </form>
+
+  <form method="post" action="/admin/reports/batch{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" id="reports-batch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="batch-bar">
+      <label><input type="checkbox" id="select-all"> 全选</label>
+      <select name="action">
+        <option value="">— 选择批量操作 —</option>
+        <option value="resolve">标记已处理</option>
+        <option value="dismiss">忽略</option>
+        <option value="hide_content">隐藏内容并处理</option>
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">应用到选中</button>
+      <span id="sel-count"></span>
+    </div>
+  </form>
+
+  <table class="data">
+    <tr>
+      <th class="chk"></th>
+      <th>ID</th><th>举报人</th><th>目标</th><th>理由</th><th>状态</th><th>时间</th><th>处理</th>
+    </tr>
+    {% for r in reports %}
+    <tr>
+      <td class="chk"><input type="checkbox" name="ids" value="{{ r.id }}" form="reports-batch"></td>
+      <td class="mono">{{ r.id }}</td>
+      <td>{{ r.reporter_name or '已注销' }}</td>
+      <td>{% if r.target %}<a href="{{ r.target.url }}">{{ r.target.label }}</a>{% else %}<span style="color:var(--muted)">目标已删除 ({{ r.target_type }} #{{ r.target_id }})</span>{% endif %}</td>
+      <td style="max-width:260px">{{ r.reason }}</td>
+      <td>
+        {% if r.status == 'open' %}<span class="badge badge-red">待处理</span>
+        {% elif r.status == 'resolved' %}<span class="badge badge-olive">已处理</span>
+        {% else %}<span class="badge">已忽略</span>{% endif %}
+      </td>
+      <td class="mono">{{ r.created_at|dt }}</td>
+      <td style="white-space:nowrap">
+        {% if r.status == 'open' %}
+        <form method="post" action="/admin/reports/{{ r.id }}/action" style="display:flex;gap:5px;flex-wrap:wrap">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-danger" name="action" value="hide_content"
+                  onclick="return confirm('将隐藏/封禁被举报内容，确定？')">隐藏内容</button>
+          <button class="btn btn-sm btn-primary" name="action" value="resolve">标记已处理</button>
+          <button class="btn btn-sm" name="action" value="dismiss">忽略</button>
+        </form>
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="empty-state"><span class="icon">🕊</span>暂无举报</td></tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/reports?status={{ status }}&target_type={{ ttype }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

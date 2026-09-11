@@ -1,0 +1,17 @@
+{
+  "id": "fighter_02",
+  "name": "侦察机",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "fighter",
+  "cost_g": 40,
+  "cost_k": 1,
+  "attack": 2,
+  "defense": 1,
+  "vision_range": "front_3x2",
+  "attack_range": "column_and_neighbors",
+  "abilities": ["防空", "潜行"],
+  "rarity": "silver",
+  "art": "",
+  "flavor_text": "悄无声息地掠过战场上空。"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "fighter_03",
+  "name": "王牌飞行员",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "fighter",
+  "cost_g": 70,
+  "cost_k": 3,
+  "attack": 6,
+  "defense": 3,
+  "vision_range": "front_3x2",
+  "attack_range": "column_and_neighbors",
+  "abilities": ["防空", "冲锋"],
+  "rarity": "gold",
+  "art": "",
+  "flavor_text": "红色男爵的传说。"
+}

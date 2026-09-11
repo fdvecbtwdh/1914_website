@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% block title %}{{ site_name }} — WW1 卡牌对战游戏 · 官方网站{% endblock %}
+
+{% block content %}
+<div class="container">
+  <section class="hero">
+    <h1>19<span class="year">14</span></h1>
+    <p class="tagline">第一次世界大战题材卡牌对战游戏。抽牌、生产、部署、进攻——
+      在堑壕与钢铁洪流之间夺取阵线。迷雾之中，敌人无处不在。</p>
+    <div class="hero-actions">
+      <a class="btn btn-brass" href="/cards">浏览卡牌社区</a>
+      <a class="btn btn-primary" href="/issues">反馈 Bug</a>
+      <a class="btn" href="/about">了解游戏</a>
+      <a class="btn" href="{{ github_repo_url }}" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+    <div class="hero-meta">
+      <span>当前版本 <b>v{{ game_version }}</b>（{{ game_version_label }}）</span>
+      <span>卡牌 <b>{{ stats.cards }}</b> 张</span>
+      <span>指挥官 <b>{{ stats.users }}</b> 位</span>
+      <span>待处理 Issue <b>{{ stats.open_issues }}</b> 个</span>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <div class="panel">
+      <h2>🆕 最新卡牌</h2>
+      <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
+        {% for card in latest_cards %}
+        {{ gcard(card, size='sm') }}
+        {% else %}
+        <div class="empty-state">还没有卡牌</div>
+        {% endfor %}
+      </div>
+      <p style="margin:14px 0 0"><a href="/cards">查看全部 →</a></p>
+    </div>
+
+    <div class="panel">
+      <h2>🔥 热门卡牌</h2>
+      <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
+        {% for card in hot_cards %}
+        {{ gcard(card, size='sm') }}
+        {% else %}
+        <div class="empty-state">还没有卡牌</div>
+        {% endfor %}
+      </div>
+      <p style="margin:14px 0 0"><a href="/cards?sort=hot">查看热门 →</a></p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🐞 最新 Bug / Issue</h2>
+    {% for issue in latest_issues %}
+    <div class="issue-row">
+      <span class="status-pill" style="background:{{ {('open'):'#4a9e4a','in_progress':'#c9a227'}.get(issue.status, '#777777') }}">
+        {{ {('open'):'Open','in_progress':'In Progress'}.get(issue.status, issue.status) }}</span>
+      <div class="grow">
+        <a class="issue-title" href="/issue/{{ issue.id }}">{{ issue.title }}</a>
+        <div class="issue-meta">#{{ issue.id }} · {{ issue.created_at|ago }} 由 {{ issue.author_name or '?' }} 提交</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state"><span class="icon">✅</span>暂无待处理的 Issue —— 战线稳固！</div>
+    {% endfor %}
+    <p style="margin:14px 0 0"><a href="/issues">查看全部 Issues →</a></p>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat"><b>{{ stats.cards }}</b><span>社区卡牌</span></div>
+    <div class="stat"><b>{{ stats.issues }}</b><span>Issue 总数</span></div>
+    <div class="stat"><b>{{ stats.users }}</b><span>注册指挥官</span></div>
+    <div class="stat"><b>v{{ game_version }}</b><span>游戏版本</span></div>
+  </div>
+</div>
+{% endblock %}

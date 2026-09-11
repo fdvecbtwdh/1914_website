@@ -1,0 +1,17 @@
+{
+  "id": "artillery_02",
+  "name": "重型火炮",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "artillery",
+  "cost_g": 70,
+  "cost_k": 2,
+  "attack": 7,
+  "defense": 1,
+  "vision_range": "front_3x3",
+  "attack_range": "global",
+  "abilities": [],
+  "rarity": "silver",
+  "art": "",
+  "flavor_text": "一声巨响，地动山摇。"
+}

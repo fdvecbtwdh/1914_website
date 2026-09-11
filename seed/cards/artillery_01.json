@@ -1,0 +1,17 @@
+{
+  "id": "artillery_01",
+  "name": "火炮",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "artillery",
+  "cost_g": 50,
+  "cost_k": 1,
+  "attack": 5,
+  "defense": 2,
+  "vision_range": "adjacent_4",
+  "attack_range": "global",
+  "abilities": ["突击"],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "远程火力支援。"
+}

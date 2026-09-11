@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% block title %}{{ user.username }} — {{ site_name }} 指挥官档案{% endblock %}
+{% block meta_description %}{{ user.username }} 的公开主页：卡牌投稿、Issue 反馈与社区活动。{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>{{ user.username }}</h1>
+    {% if user.role == 'admin' %}<span class="badge badge-brass">管理员</span>
+    {% elif user.role == 'moderator' %}<span class="badge badge-olive">版主</span>{% endif %}
+    {% if user.is_banned %}<span class="badge badge-red">已封禁</span>{% endif %}
+    <span class="sub">注册于 {{ user.created_at|dt }}（{{ user.created_at|ago }}）</span>
+  </div>
+
+  {% if user.bio %}<p style="color:var(--text-dim);margin-top:0">{{ user.bio }}</p>{% endif %}
+
+  <div class="stat-strip" style="margin-bottom:22px">
+    <div class="stat"><b>{{ stats.cards }}</b><span>卡牌投稿</span></div>
+    <div class="stat"><b>{{ stats.issues }}</b><span>Issue</span></div>
+    <div class="stat"><b>{{ stats.comments }}</b><span>评论</span></div>
+    <div class="stat"><b>{{ stats.votes_received }}</b><span>获赞</span></div>
+  </div>
+
+  <div class="tab-row">
+    <a href="/u/{{ user.username }}?tab=cards" {% if tab == 'cards' %}class="active"{% endif %}>卡牌投稿</a>
+    <a href="/u/{{ user.username }}?tab=issues" {% if tab == 'issues' %}class="active"{% endif %}>Issue</a>
+  </div>
+
+  <div class="panel">
+    {% if tab == 'cards' %}
+      {% for card in items %}
+      <div class="list-row">
+        {{ gcard(card, size='sm') }}
+        <div class="grow">
+          <a class="row-title" href="/card/{{ card.id }}">{{ card.name }}</a>
+          <div class="row-sub">
+            {{ unit_classes.get(card.unit_class, card.unit_class or '—') }} · {{ rarities.get(card.rarity, card.rarity) }}卡
+            · ⚙{{ card.cost_g }} ✦{{ card.cost_k }} · 攻{{ card.attack }}/防{{ card.defense }}
+            {% if card.source == 'official' %} · <span class="badge badge-brass">官方</span>{% endif %}
+          </div>
+        </div>
+        <div style="text-align:right;color:var(--muted);font-size:.88rem">
+          ▲ {{ card.vote_count }} · 💬 {{ card.comment_count }}<br>{{ card.created_at|ago }}
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state"><span class="icon">🎖</span>还没有卡牌投稿</div>
+      {% endfor %}
+    {% else %}
+      {% for issue in items %}
+      <div class="issue-row">
+        <span class="status-pill" style="background:{{ {('open'):'#4a9e4a','in_progress':'#c9a227','resolved':'#3a7bbf','closed':'#777777','duplicate':'#9b59b6'}.get(issue.status, '#777777') }}">{{ issue.status }}</span>
+        <div class="grow">
+          <a class="issue-title" href="/issue/{{ issue.id }}">{{ issue.title }}</a>
+          <div class="issue-meta">#{{ issue.id }} · {{ issue.created_at|ago }} · ▲ {{ issue.vote_count }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state"><span class="icon">🐞</span>还没有提交 Issue</div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {%- for p in range(1, pages + 1) -%}
+      {%- if p == page -%}<span class="current">{{ p }}</span>
+      {%- elif p <= 3 or p > pages - 2 or (p - page)|abs <= 2 -%}
+        <a href="/u/{{ user.username }}?tab={{ tab }}&page={{ p }}">{{ p }}</a>
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

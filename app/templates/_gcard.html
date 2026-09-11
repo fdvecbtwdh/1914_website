@@ -1,0 +1,49 @@
+{# 游戏卡面预览组件 — 完全对应游戏 data/cards JSON 字段。
+   参数: card (dict: name/type/unit_class/nation/cost_g/cost_k/attack/defense/
+         vision_range/attack_range/abilities_list/rarity/art_path/flavor_text)
+         size: '' | 'sm' | 'lg'   link: 是否包链接 #}
+{% macro gcard(card, size='', link=True) -%}
+{% set cls = ['gcard', 'rarity-' + (card.rarity or 'common')] %}
+{% if card.type == 'order' %}{% set _ = cls.append('type-order') %}{% endif %}
+{% if size %}{% set _ = cls.append('gcard-' + size) %}{% endif %}
+{% set outer = ' '.join(cls) %}
+{%- if link -%}
+<a class="card-tile" href="/card/{{ card.id }}">
+{%- endif -%}
+<div class="{{ outer }}">
+  <div class="gcard-top">
+    <div class="gcard-name">{{ card.name }}</div>
+    <div class="gcard-costs">
+      <span class="cost-chip cost-g" title="生产经济 G">⚙ {{ card.cost_g }}</span>
+      <span class="cost-chip cost-k" title="部署指挥点 K">✦ {{ card.cost_k }}</span>
+    </div>
+  </div>
+  <div class="gcard-art">
+    {% if card.art_path %}
+      <img src="{{ card.art_path }}" alt="{{ card.name }} 卡面" loading="lazy">
+    {% else %}
+      <span class="placeholder-icon">{{ class_icons.get(card.unit_class, '⚔') }}</span>
+    {% endif %}
+  </div>
+  <div class="gcard-stats">
+    <span class="stat-atk">{{ card.attack }}</span>
+    <span class="stat-def">{{ card.defense }}</span>
+  </div>
+  {% if card.vision_range or card.attack_range %}
+  <div class="gcard-range">视野: {{ ranges.get(card.vision_range, card.vision_range or '—') }} · 射程: {{ ranges.get(card.attack_range, card.attack_range or '—') }}</div>
+  {% endif %}
+  {% if card.abilities_list %}
+  <div class="gcard-abilities">
+    {% for ab in card.abilities_list %}<span class="ability-chip" title="{{ ability_tips.get(ab, ability_tips.get(ab.rstrip('0123456789'), '')) }}">{{ ab }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  <div class="gcard-flavor">{{ card.flavor_text or ' ' }}</div>
+  <div class="gcard-footer">
+    <span class="nation">{{ nations.get(card.nation, card.nation) }}</span>
+    <span class="cls">{{ unit_classes.get(card.unit_class, card.unit_class or '指令') }} · {{ rarities.get(card.rarity, card.rarity) }}卡</span>
+  </div>
+</div>
+{%- if link -%}
+</a>
+{%- endif -%}
+{%- endmacro %}

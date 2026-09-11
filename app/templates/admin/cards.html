@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% block title %}卡牌管理 — 后台{% endblock %}
+
+{% macro view_link(v, icon, label) -%}
+<a href="/admin/cards?{% for k in request.args %}{% if k != 'view' %}{{ k }}={{ request.args[k] }}&amp;{% endif %}{% endfor %}view={{ v }}"
+   class="{{ 'active' if view == v }}" title="{{ label }}视图">{{ icon }} {{ label }}</a>
+{%- endmacro %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>卡牌管理</h1><span class="sub">{{ total }} 张</span>
+    <form method="post" action="/admin/cards/import" style="margin-left:auto">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">↻ 从游戏项目导入官方卡牌</button>
+    </form>
+  </div>
+  {% include "_admin_nav.html" %}
+
+  <form class="filter-bar" method="get" action="/admin/cards">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索卡牌名 / 游戏ID…">
+    <select name="source">
+      <option value="">全部来源</option>
+      <option value="official" {% if source == 'official' %}selected{% endif %}>🎖 官方</option>
+      <option value="community" {% if source == 'community' %}selected{% endif %}>玩家自制</option>
+    </select>
+    <select name="status">
+      <option value="">全部状态</option>
+      <option value="visible" {% if status == 'visible' %}selected{% endif %}>显示中</option>
+      <option value="hidden" {% if status == 'hidden' %}selected{% endif %}>已隐藏</option>
+    </select>
+    <select name="type">
+      <option value="">全部类型</option>
+      {% for k, v in card_types.items() %}<option value="{{ k }}" {% if ctype == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <select name="class">
+      <option value="">全部兵种</option>
+      {% for k, v in unit_classes.items() %}<option value="{{ k }}" {% if uclass == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <select name="rarity">
+      <option value="">全部稀有度</option>
+      {% for k, v in rarities.items() %}<option value="{{ k }}" {% if rarity == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if q or source or status or ctype or uclass or rarity %}<a class="filter-clear" href="/admin/cards">✕ 清除筛选</a>{% endif %}
+    <span class="view-toggle" style="margin-left:auto">
+      {{ view_link('detailed', '▦', '详细') }}
+      {{ view_link('compact', '▣', '紧凑') }}
+    </span>
+  </form>
+
+  <form method="post" action="/admin/cards/batch{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" id="cards-batch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="batch-bar">
+      <label><input type="checkbox" id="select-all"> 全选</label>
+      <select name="action">
+        <option value="">— 选择批量操作 —</option>
+        <option value="hide">隐藏</option>
+        <option value="show">恢复显示</option>
+        <option value="delete">删除</option>
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">应用到选中</button>
+      <span id="sel-count"></span>
+    </div>
+  </form>
+
+  <table class="data">
+    <tr>
+      <th class="chk"></th>
+      <th>ID</th>
+      {% if view != 'compact' %}<th>预览</th>{% endif %}
+      <th>名称</th><th>来源</th><th>状态</th><th>作者</th><th>发布</th><th>操作</th>
+    </tr>
+    {% for c in cards %}
+    <tr{% if view == 'compact' %} class="compact-row"{% endif %}>
+      <td class="chk"><input type="checkbox" name="ids" value="{{ c.id }}" form="cards-batch"></td>
+      <td class="mono">{{ c.id }}</td>
+      {% if view != 'compact' %}<td>{{ gcard(c, size='sm', link=False) }}</td>{% endif %}
+      <td>
+        {% if view == 'compact' %}<span class="mini-art mini-inline" title="{{ c.name }}">{% if c.art_path %}<img src="{{ c.art_path }}" alt="" loading="lazy">{% else %}{{ class_icons.get(c.unit_class, '⚔') }}{% endif %}</span>{% endif %}
+        <a href="/card/{{ c.id }}">{{ c.name }}</a>{% if c.game_id %} <span class="mono" style="font-size:.8em;color:var(--muted)">{{ c.game_id }}</span>{% endif %}
+        <span class="badge">{{ rarities.get(c.rarity, c.rarity) }}</span>
+        <span class="badge">{{ unit_classes.get(c.unit_class, c.unit_class or '—') }}</span>
+      </td>
+      <td>{% if c.source == 'official' %}<span class="badge badge-brass">官方</span>{% else %}<span class="badge">自制</span>{% endif %}</td>
+      <td>{% if c.status == 'visible' %}<span class="badge badge-olive">显示</span>{% else %}<span class="badge badge-red">隐藏</span>{% endif %}</td>
+      <td>{{ c.author_name or '—' }}</td>
+      <td class="mono">{{ c.created_at|dt }}</td>
+      <td style="white-space:nowrap">
+        <form method="post" action="/admin/cards/{{ c.id }}/action" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if c.status == 'visible' %}
+          <button class="btn btn-sm" name="action" value="hide">隐藏</button>
+          {% else %}
+          <button class="btn btn-sm" name="action" value="show">恢复</button>
+          {% endif %}
+          <button class="btn btn-sm btn-danger" name="action" value="delete"
+                  onclick="return confirm('确定删除 {{ c.name }}？不可恢复。')">删除</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/cards?q={{ q|urlencode }}&source={{ source }}&status={{ status }}&type={{ ctype }}&class={{ uclass }}&rarity={{ rarity }}&view={{ view }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

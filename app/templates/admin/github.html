@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}GitHub 同步 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>GitHub Issue 同步</h1></div>
+  {% include "_admin_nav.html" %}
+
+  <div class="panel">
+    <h2>同步状态</h2>
+    <table class="meta-table">
+      <tr><td>目标仓库</td><td><a href="https://github.com/{{ repo }}" target="_blank" rel="noopener">{{ repo }}</a></td></tr>
+      <tr><td>Token</td><td>{% if token_set %}<span class="badge badge-olive">已配置</span>{% else %}<span class="badge badge-red">未配置</span>（在 .env 中设置 GITHUB_TOKEN，站点不依赖同步功能）{% endif %}</td></tr>
+      <tr><td>队列任务</td><td>{{ queue|length }} 条（最近）</td></tr>
+    </table>
+    <p class="md-hint">原理：网站 Issue 为主数据源；创建 / 编辑 / 关闭 Issue 时加入同步队列，
+      后台线程调用 GitHub API 推送。GitHub 不可达时任务保留并重试（最多 5 次），不影响网站任何功能。</p>
+    <form method="post" action="/admin/github/retry">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm" type="submit">↻ 重试所有失败任务</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>同步队列</h2>
+    <form class="filter-bar" method="get" action="/admin/github" style="margin-bottom:12px">
+      <select name="status">
+        <option value="">全部状态</option>
+        {% for s in ('pending', 'done', 'failed', 'skipped') %}
+        <option value="{{ s }}" {% if qstatus == s %}selected{% endif %}>{{ {'pending':'待处理','done':'完成','failed':'失败','skipped':'跳过'}[s] }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit">筛选</button>
+      {% if qstatus %}<a class="filter-clear" href="/admin/github">✕ 清除筛选</a>{% endif %}
+    </form>
+    <table class="data">
+      <tr><th>ID</th><th>Issue</th><th>动作</th><th>状态</th><th>尝试</th><th>错误</th><th>时间</th></tr>
+      {% for q in queue %}
+      <tr>
+        <td class="mono">{{ q.id }}</td>
+        <td>{% if q.title %}<a href="/issue/{{ q.issue_id }}">#{{ q.issue_id }} {{ q.title[:40] }}</a>{% else %}#{{ q.issue_id }}（已删除）{% endif %}</td>
+        <td><span class="badge">{{ q.action }}</span></td>
+        <td>
+          {% if q.status == 'done' %}<span class="badge badge-olive">完成</span>
+          {% elif q.status == 'pending' %}<span class="badge badge-brass">待处理</span>
+          {% elif q.status == 'failed' %}<span class="badge badge-red">失败</span>
+          {% else %}<span class="badge">{{ q.status }}</span>{% endif %}
+        </td>
+        <td>{{ q.attempts }}</td>
+        <td style="max-width:300px;font-size:.85em;color:var(--muted)">{{ q.last_error or '—' }}</td>
+        <td class="mono">{{ q.created_at|dt }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state">队列为空 —— 配置 Token 后新 Issue 将自动同步</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

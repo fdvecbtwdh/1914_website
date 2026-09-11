@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}注册 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:420px">
+  <div class="panel form-panel" style="margin:40px auto">
+    <h2>✠ 加入 1914</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0">注册后即可投稿卡牌、提交 Bug、参与评论和投票。</p>
+    <form method="post" action="/register">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:14px">
+        <label>用户名 *（2–20 字符，中文/字母/数字/下划线）</label>
+        <input type="text" name="username" required autofocus minlength="2" maxlength="20" autocomplete="username">
+      </div>
+      <div style="margin-bottom:14px">
+        <label>邮箱（选填，可用于登录）</label>
+        <input type="email" name="email" autocomplete="email">
+      </div>
+      <div style="margin-bottom:14px">
+        <label>密码 *（至少 8 位，须包含字母和数字）</label>
+        <input type="password" name="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div style="margin-bottom:18px">
+        <label>确认密码 *</label>
+        <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
+      </div>
+      <button class="btn btn-brass" type="submit" style="width:100%">注册</button>
+    </form>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:16px;text-align:center">
+      已有账号？<a href="/login">直接登录</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

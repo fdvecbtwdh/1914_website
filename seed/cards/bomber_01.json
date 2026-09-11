@@ -1,0 +1,17 @@
+{
+  "id": "bomber_01",
+  "name": "轰炸机",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "bomber",
+  "cost_g": 60,
+  "cost_k": 2,
+  "attack": 6,
+  "defense": 1,
+  "vision_range": "front_3x2",
+  "attack_range": "column_and_neighbors",
+  "abilities": [],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "从天而降的毁灭。"
+}

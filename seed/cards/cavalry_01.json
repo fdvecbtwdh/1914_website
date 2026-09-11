@@ -1,0 +1,17 @@
+{
+  "id": "cavalry_01",
+  "name": "骑兵",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "cavalry",
+  "cost_g": 40,
+  "cost_k": 2,
+  "attack": 4,
+  "defense": 2,
+  "vision_range": "adjacent_4",
+  "attack_range": "adjacent_4",
+  "abilities": ["冲锋"],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "马蹄声震彻战场。"
+}

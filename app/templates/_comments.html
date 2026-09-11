@@ -1,0 +1,79 @@
+{# 共享评论区 — 卡牌 & Issue 详情页复用
+   参数: target_type ('card'|'issue'), target_id, comments (两层结构) #}
+<div id="comments">
+  <h2 style="color:var(--brass-bright)">评论 (<span id="comment-count">{{ comments|length }}</span>)</h2>
+
+  {% if current_user %}
+  <div id="comment-form-slot-main" class="comment-form">
+    <form id="comment-form" data-type="{{ target_type }}" data-id="{{ target_id }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="parent_id" value="">
+      <textarea name="body" placeholder="发表评论… 支持 Markdown" required></textarea>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+        <button class="btn btn-primary btn-sm" type="submit">发表评论</button>
+        <button class="btn btn-sm" type="button" id="cancel-reply" style="display:none">取消回复</button>
+        <span class="md-hint">支持 **粗体**、*斜体*、`代码`、> 引用</span>
+      </div>
+    </form>
+  </div>
+  {% else %}
+  <p class="md-hint"><a href="/login?next={{ request.path }}">登录</a> 后参与评论。</p>
+  {% endif %}
+
+  <div class="comment-list" style="margin-top:18px">
+    {% for c in comments %}
+    <div data-comment-root="{{ c.id }}" class="comment">
+      <div class="comment-head">
+        <a class="author" href="/u/{{ c.username or '?' }}">{{ c.username or '已注销' }}</a>
+        {% if c.author_role in ('admin', 'moderator') %}<span class="badge badge-olive">{{ '管理员' if c.author_role == 'admin' else '版主' }}</span>{% endif %}
+        <span>{{ c.created_at|ago }}{% if c.edited_at %} · 已编辑{% endif %}</span>
+      </div>
+      <div class="comment-body md-body">{{ c.body_html|safe if not c.is_deleted else '（已删除）' }}</div>
+      {% if not c.is_deleted %}
+      <div class="comment-actions">
+        {% if current_user %}<a href="#comments" class="comment-reply" data-id="{{ c.id }}">回复</a>{% endif %}
+        {% if current_user and current_user['id'] == c.author_id %}
+          <button class="comment-edit" data-id="{{ c.id }}" data-raw="{{ c.body }}">编辑</button>
+        {% endif %}
+        {% if current_user and (current_user['id'] == c.author_id or is_moderator) %}
+          <button class="comment-delete" data-id="{{ c.id }}">删除</button>
+        {% endif %}
+        {% if current_user and current_user['id'] != c.author_id %}
+          <button class="report-btn" data-type="comment" data-id="{{ c.id }}">举报</button>
+        {% endif %}
+      </div>
+      {% endif %}
+      <div class="comment-form-slot"></div>
+      {% if c.replies %}
+      <div class="comment-replies">
+        {% for r in c.replies %}
+        <div data-comment-root="{{ r.id }}" class="comment">
+          <div class="comment-head">
+            <a class="author" href="/u/{{ r.username or '?' }}">{{ r.username or '已注销' }}</a>
+            {% if r.author_role in ('admin', 'moderator') %}<span class="badge badge-olive">{{ '管理员' if r.author_role == 'admin' else '版主' }}</span>{% endif %}
+            <span>{{ r.created_at|ago }}{% if r.edited_at %} · 已编辑{% endif %}</span>
+          </div>
+          <div class="comment-body md-body">{{ r.body_html|safe if not r.is_deleted else '（已删除）' }}</div>
+          {% if not r.is_deleted %}
+          <div class="comment-actions">
+            {% if current_user and current_user['id'] == r.author_id %}
+              <button class="comment-edit" data-id="{{ r.id }}" data-raw="{{ r.body }}">编辑</button>
+            {% endif %}
+            {% if current_user and (current_user['id'] == r.author_id or is_moderator) %}
+              <button class="comment-delete" data-id="{{ r.id }}">删除</button>
+            {% endif %}
+            {% if current_user and current_user['id'] != r.author_id %}
+              <button class="report-btn" data-type="comment" data-id="{{ r.id }}">举报</button>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state">还没有评论，来说点什么吧。</div>
+    {% endfor %}
+  </div>
+</div>

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}#{{ issue.id }} {{ issue.title }} — {{ site_name }} Issues{% endblock %}
+{% block meta_description %}{{ issue.body|excerpt(150) }}{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block content %}
+<div class="container">
+  <nav class="breadcrumb"><a href="/issues">Bug / Issues</a> / #{{ issue.id }}</nav>
+
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+    <div class="vote-box" style="min-width:70px">
+      <button class="vote-btn {{ 'voted' if my_vote else '' }}" data-type="issue" data-id="{{ issue.id }}"
+              data-require-login="{{ 0 if current_user else 1 }}">▲</button>
+      <span class="vote-count" data-type="issue" data-id="{{ issue.id }}">{{ issue.vote_count }}</span>
+    </div>
+    <div style="flex:1;min-width:280px">
+      <h1 style="margin:0;font-size:1.5rem">{{ issue.title }}</h1>
+      <p style="color:var(--muted);margin:6px 0 0">
+        <span class="issue-id">#{{ issue.id }}</span> ·
+        <a href="/u/{{ issue.author_name or '?' }}">{{ issue.author_name or '已注销' }}</a>
+        于 {{ issue.created_at|dt }} 提交 · 最后更新 {{ issue.updated_at|ago }}
+        {% if issue.github_url %} · <a href="{{ issue.github_url }}" target="_blank" rel="noopener">GitHub #{{ issue.github_number }} ↗</a>{% endif %}
+        · <button class="report-btn" data-type="issue" data-id="{{ issue.id }}" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">举报</button>
+        {% if current_user and current_user['id'] == issue.author_id or is_moderator %}
+          · <a href="/issue/{{ issue.id }}/edit">编辑</a>
+        {% endif %}
+      </p>
+      <p style="margin:10px 0 0">
+        <span class="status-pill" style="background:{{ {('open'):'#4a9e4a','in_progress':'#c9a227','resolved':'#3a7bbf','closed':'#777777','duplicate':'#9b59b6'}.get(issue.status) }}">{{ statuses[issue.status] }}</span>
+        {% if issue.priority != 'none' %}<span class="priority-chip" style="color:{{ {('none'):'#777','low':'#3a7bbf','medium':'#c9a227','high':'#d35400','critical':'#b03030'}.get(issue.priority) }};font-size:.95em">优先级：{{ priorities[issue.priority] }}</span>{% endif %}
+        {% for l in labels %}<span class="label-chip" style="background:{{ l.color }}">{{ l.name }}</span>{% endfor %}
+        {% if issue.status == 'duplicate' and dup_of %}
+          <span style="color:var(--muted)">· 重复于 <a href="/issue/{{ dup_of.id }}">#{{ dup_of.id }} {{ dup_of.title }}</a></span>
+        {% endif %}
+        {% if dups %}<span style="color:var(--muted)">· 重复项：{% for d in dups %}<a href="/issue/{{ d.id }}">#{{ d.id }}</a> {% endfor %}</span>{% endif %}
+      </p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px">
+    <div class="md-body">{{ issue.body|md|safe }}</div>
+  </div>
+
+  {% if issue.game_version or issue.sys_info %}
+  <div class="panel" style="font-size:.92rem;color:var(--text-dim)">
+    {% if issue.game_version %}<p style="margin:0 0 6px"><b>游戏版本：</b><span class="mono">{{ issue.game_version }}</span></p>{% endif %}
+    {% if issue.sys_info %}<p style="margin:0"><b>系统信息：</b>{{ issue.sys_info }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if is_moderator %}
+  <div class="panel">
+    <h2>🛠 管理操作</h2>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <form method="post" action="/issue/{{ issue.id }}/moderate">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="status">
+        <label>状态</label>
+        <div style="display:flex;gap:8px">
+          <select name="status">
+            {% for k, v in statuses.items() %}
+            <option value="{{ k }}" {% if issue.status == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-primary" type="submit">更新状态</button>
+        </div>
+        {% if issue.status == 'duplicate' %}
+        <input type="text" name="duplicate_of" placeholder="重复于 Issue 编号" value="{{ issue.duplicate_of or '' }}" style="margin-top:8px">
+        {% endif %}
+      </form>
+      <form method="post" action="/issue/{{ issue.id }}/moderate">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="priority">
+        <label>优先级</label>
+        <div style="display:flex;gap:8px">
+          <select name="priority">
+            {% for k, v in priorities.items() %}
+            <option value="{{ k }}" {% if issue.priority == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-primary" type="submit">更新优先级</button>
+        </div>
+      </form>
+      <form method="post" action="/issue/{{ issue.id }}/moderate">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="labels">
+        <label>标签（逗号分隔）</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" name="tags" value="{{ labels|map(attribute='name')|join(', ') }}">
+          <button class="btn btn-sm btn-primary" type="submit">更新标签</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% set target_type = 'issue' %}{% set target_id = issue.id %}
+  {% include "_comments.html" with context %}
+</div>
+{% endblock %}

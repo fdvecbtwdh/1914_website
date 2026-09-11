@@ -1,0 +1,17 @@
+{
+  "id": "bomber_02",
+  "name": "重型轰炸机",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "bomber",
+  "cost_g": 80,
+  "cost_k": 3,
+  "attack": 8,
+  "defense": 2,
+  "vision_range": "front_3x2",
+  "attack_range": "column_and_neighbors",
+  "abilities": ["响应"],
+  "rarity": "gold",
+  "art": "",
+  "flavor_text": "战略轰炸，摧毁一切。"
+}

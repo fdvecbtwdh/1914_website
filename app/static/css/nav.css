@@ -1,0 +1,51 @@
+/* 导航枢纽页 — 中性深色风格（与游戏主题无关） */
+:root {
+  --bg: #101318;
+  --panel: #1a1f26;
+  --panel-2: #212831;
+  --line: #2a313b;
+  --text: #d7dce2;
+  --dim: #8a93a0;
+  --accent: #4f8cff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+.hub-header {
+  display: flex; align-items: center; gap: 18px;
+  max-width: 860px; width: 100%; margin: 0 auto; padding: 46px 20px 26px;
+}
+.hub-header h1 { font-size: 1.5rem; margin: 0; letter-spacing: .08em; }
+.back { margin-left: auto; color: var(--dim); font-size: .92rem; text-decoration: none; }
+.back:hover { color: var(--accent); }
+.hub-grid {
+  max-width: 860px; width: 100%; margin: 0 auto; padding: 0 20px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;
+  flex: 1; align-content: start;
+}
+.hub-card {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 22px 24px; color: var(--text); text-decoration: none;
+  transition: border-color .14s, transform .14s, background .14s;
+}
+.hub-card:hover {
+  border-color: var(--accent); background: var(--panel-2);
+  transform: translateY(-3px);
+}
+.hub-card .icon { font-size: 2rem; flex-shrink: 0; }
+.hub-card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hub-card b { font-size: 1.15rem; font-weight: 700; letter-spacing: .04em; }
+.hub-card small { color: var(--dim); font-size: .82rem; line-height: 1.45; }
+.hub-card .go { color: var(--dim); font-size: .85rem; flex-shrink: 0; transition: color .14s; }
+.hub-card:hover .go { color: var(--accent); }
+.hub-footer {
+  text-align: center; color: var(--dim); font-size: .85rem;
+  padding: 30px 20px; border-top: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .hub-grid { grid-template-columns: 1fr; }
+}

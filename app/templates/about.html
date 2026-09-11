@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}关于游戏 — {{ site_name }}{% endblock %}
+{% block meta_description %}1914 是一款第一次世界大战题材的卡牌对战游戏：经济生产、指挥点部署、阵线攻防与战争迷雾。{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>关于 1914</h1></div>
+
+  <div class="grid-2">
+    <div>
+      <div class="panel">
+        <h2>🎖 游戏简介</h2>
+        <p><b>1914</b> 是一款以第一次世界大战为背景的<b>回合制卡牌对战游戏</b>。
+          双方指挥官在 5×5 的阵线棋盘上排兵布阵：用<b>经济 (G)</b> 生产单位、
+          用<b>指挥点 (K)</b> 将其投入战场，攻占敌方全部阵线即为胜利。</p>
+        <p>游戏强调<b>战争迷雾</b>与<b>兵种协同</b>——步兵、骑兵、坦克、战斗机、轰炸机、火炮
+          各有独特的视野与射程，侦察与反侦察往往决定胜负。</p>
+        <p>引擎使用 <b>Godot 4.7</b>，规则引擎为纯函数实现，核心机制经过约 200 项自动化断言验证。</p>
+      </div>
+
+      <div class="panel">
+        <h2>⚙ 三种资源</h2>
+        <table class="meta-table">
+          <tr><td>经济 G</td><td>生产单位。每回合开始获得 150，可无限累积</td></tr>
+          <tr><td>指挥点 K</td><td>部署单位、移动 / 攻击。每回合获得、清空</td></tr>
+          <tr><td>战争点 Z</td><td>部分部署消耗。每回合获得、清空</td></tr>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2>🗺 单位类型</h2>
+        <table class="meta-table">
+          <tr><td>{{ class_icons['infantry'] }} 步兵</td><td>视野与射程均为周围四格，前线的中坚力量</td></tr>
+          <tr><td>{{ class_icons['cavalry'] }} 骑兵</td><td>机动冲锋，首次攻击不受反击</td></tr>
+          <tr><td>{{ class_icons['tank'] }} 坦克</td><td>周围八格视野与射程，自带坚守</td></tr>
+          <tr><td>{{ class_icons['fighter'] }} 战斗机</td><td>争夺制空权，可执行巡逻任务</td></tr>
+          <tr><td>{{ class_icons['bomber'] }} 轰炸机</td><td>对陆轰炸，无法被反击</td></tr>
+          <tr><td>{{ class_icons['artillery'] }} 火炮</td><td>全图射程的远程火力支援</td></tr>
+          <tr><td>{{ class_icons['fortification'] }} 工事</td><td>无法移动的防线守备</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>📌 项目状态</h2>
+        <table class="meta-table">
+          <tr><td>当前版本</td><td><b>v{{ game_version }}</b>（{{ game_version_label }}）</td></tr>
+          <tr><td>已完成</td><td>✅ 单卡原型 · 本地完整对战 · 15 张单位卡 · 10 个词条 · 简化迷雾系统</td></tr>
+          <tr><td>开发中</td><td>⬜ 联网对战（阶段4） · 卡组构筑 · 指令卡</td></tr>
+          <tr><td>开源仓库</td><td><a href="{{ github_repo_url }}" target="_blank" rel="noopener">{{ github_repo_url }}</a></td></tr>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2>🎖 基础词条</h2>
+        <table class="meta-table">
+          {% for ab, tip in ability_tips.items() %}
+          <tr><td style="white-space:nowrap"><b style="color:var(--brass-bright)">{{ ab }}</b></td><td>{{ tip }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2>💬 参与社区</h2>
+        <p>设计自己的卡牌并向社区投稿，或提交游戏中遇到的问题：</p>
+        <p style="display:flex;gap:10px">
+          <a class="btn btn-brass" href="/cards/new">投稿卡牌</a>
+          <a class="btn btn-primary" href="/issues/new">提交 Bug</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

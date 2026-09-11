@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>导航 — 1914.fun</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/static/img/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/static/css/nav.css">
+</head>
+<body>
+<header class="hub-header">
+  <h1>导航</h1>
+  <a class="back" href="/index">去 1914 ↗</a>
+</header>
+<main class="hub-grid">
+  {% for icon, title, desc, url in items %}
+  <a class="hub-card" href="{{ url }}">
+    <span class="icon">{{ icon }}</span>
+    <span class="info">
+      <b>{{ title }}</b>
+      <small>{{ desc }}</small>
+    </span>
+    <span class="go">进入 ↗</span>
+  </a>
+  {% endfor %}
+</main>
+<footer class="hub-footer">1914.fun · 更多内容陆续添加中</footer>
+</body>
+</html>

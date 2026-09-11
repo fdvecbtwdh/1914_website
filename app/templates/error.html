@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="text-align:center;padding:80px 20px">
+  <h1 style="font-size:4rem;color:var(--brass);margin:0">{{ code }}</h1>
+  <p style="font-size:1.2rem;color:var(--text-dim)">{{ message }}</p>
+  <p>
+    <a class="btn btn-brass" href="/index">返回指挥部</a>
+    <a class="btn" href="/cards">卡牌社区</a>
+    <a class="btn" href="/issues">Bug / Issues</a>
+  </p>
+</div>
+{% endblock %}

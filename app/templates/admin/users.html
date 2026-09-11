@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}用户管理 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>用户管理</h1><span class="sub">{{ total }} 位用户</span></div>
+  {% include "_admin_nav.html" %}
+
+  <form class="filter-bar" method="get" action="/admin/users">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索用户名…">
+    <select name="role">
+      <option value="">全部角色</option>
+      {% for r in ('user', 'moderator', 'admin') %}
+      <option value="{{ r }}" {% if role == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+    <select name="status">
+      <option value="">全部状态</option>
+      <option value="active" {% if status == 'active' %}selected{% endif %}>正常</option>
+      <option value="banned" {% if status == 'banned' %}selected{% endif %}>已封禁</option>
+    </select>
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if q or role or status %}<a class="filter-clear" href="/admin/users">✕ 清除筛选</a>{% endif %}
+  </form>
+
+  <form method="post" action="/admin/users/batch{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" id="users-batch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="batch-bar">
+      <label><input type="checkbox" id="select-all"> 全选</label>
+      <select name="action">
+        <option value="">— 选择批量操作 —</option>
+        <option value="ban">封禁（踢出会话）</option>
+        <option value="unban">解封</option>
+        <option value="set_user">设为 user</option>
+        <option value="set_moderator">设为 moderator</option>
+        <option value="set_admin">设为 admin</option>
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">应用到选中</button>
+      <span id="sel-count"></span>
+    </div>
+  </form>
+
+  <table class="data">
+    <tr>
+      <th class="chk"></th>
+      <th>ID</th><th>用户名</th><th>角色</th><th>状态</th><th>注册</th><th>投稿</th><th>操作</th>
+    </tr>
+    {% for u in users %}
+    <tr>
+      <td class="chk"><input type="checkbox" name="ids" value="{{ u.id }}" form="users-batch"></td>
+      <td class="mono">{{ u.id }}</td>
+      <td><a href="/u/{{ u.username }}">{{ u.username }}</a></td>
+      <td>
+        <form method="post" action="/admin/users/{{ u.id }}/action" style="display:flex;gap:6px;align-items:center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="action" onchange="this.form.submit()">
+            <option value="">—</option>
+            <option value="set_user" {% if u.role == 'user' %}disabled{% endif %}>设为 user</option>
+            <option value="set_moderator" {% if u.role == 'moderator' %}disabled{% endif %}>设为 moderator</option>
+            <option value="set_admin" {% if u.role == 'admin' %}disabled{% endif %}>设为 admin</option>
+          </select>
+          <span class="badge {% if u.role == 'admin' %}badge-brass{% elif u.role == 'moderator' %}badge-olive{% endif %}">{{ u.role }}</span>
+        </form>
+      </td>
+      <td>{% if u.is_banned %}<span class="badge badge-red">已封禁</span>{% else %}<span class="badge badge-olive">正常</span>{% endif %}</td>
+      <td class="mono">{{ u.created_at|dt }}</td>
+      <td>{{ u.card_count }}卡 / {{ u.issue_count }}issue</td>
+      <td>
+        <form method="post" action="/admin/users/{{ u.id }}/action">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if u.is_banned %}
+          <button class="btn btn-sm" name="action" value="unban">解封</button>
+          {% else %}
+          <button class="btn btn-sm btn-danger" name="action" value="ban"
+                  onclick="return confirm('确定封禁 {{ u.username }}？将同时踢出所有会话。')">封禁</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/users?q={{ q|urlencode }}&role={{ role }}&status={{ status }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

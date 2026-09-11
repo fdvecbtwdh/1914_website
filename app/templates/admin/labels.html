@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}标签管理 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>标签管理</h1></div>
+  {% include "_admin_nav.html" %}
+
+  <div class="grid-2">
+    <div class="panel">
+      <h2>新建 / 更新标签</h2>
+      <form method="post" action="/admin/labels">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px">
+            <label>标签名</label>
+            <input type="text" name="name" maxlength="30" required placeholder="如: 平衡性">
+          </div>
+          <div>
+            <label>颜色</label>
+            <input type="color" name="color" value="#6b7a4f" style="height:38px;width:64px;padding:2px">
+          </div>
+          <button class="btn btn-brass" type="submit">保存</button>
+        </div>
+        <p class="md-hint">标签名已存在时更新颜色。</p>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>现有标签</h2>
+      <form method="post" action="/admin/labels/batch" id="labels-batch">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="batch-bar">
+          <label><input type="checkbox" id="select-all"> 全选</label>
+          <select name="action">
+            <option value="">— 选择批量操作 —</option>
+            <option value="delete">删除</option>
+          </select>
+          <button class="btn btn-sm btn-danger" type="submit">应用到选中</button>
+          <span id="sel-count"></span>
+        </div>
+      </form>
+      <table class="data">
+        <tr><th class="chk"></th><th>标签</th><th>颜色</th><th>使用次数</th><th>操作</th></tr>
+        {% for l in labels %}
+        <tr>
+          <td class="chk"><input type="checkbox" name="ids" value="{{ l.id }}" form="labels-batch"></td>
+          <td><span class="label-chip" style="background:{{ l.color }}">{{ l.name }}</span></td>
+          <td class="mono">{{ l.color }}</td>
+          <td>{{ l.used }}</td>
+          <td>
+            <form method="post" action="/admin/labels/{{ l.id }}/delete">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-danger" onclick="return confirm('删除标签 {{ l.name }}？')">删除</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">暂无标签</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

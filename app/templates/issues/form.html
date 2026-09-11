@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑 Issue' if editing else '提交 Issue' }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>{{ '编辑 Issue #' + issue.id|string if editing else '提交 Bug / Issue' }}</h1>
+  </div>
+
+  <form class="panel form-panel" method="post"
+        action="{{ '/issue/' + issue.id|string + '/edit' if editing else '/issues/new' }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="margin-bottom:14px">
+      <label>标题 *（5–120 字符，说清楚出了什么问题）</label>
+      <input type="text" name="title" minlength="5" maxlength="120" required
+             value="{{ issue.title if issue else '' }}"
+             placeholder="例：使用火炮攻击敌方工事时游戏闪退">
+    </div>
+    <div style="margin-bottom:14px">
+      <label>问题描述 *</label>
+      <textarea name="body" data-md-preview="#body-preview" required
+                placeholder="## 复现步骤&#10;1. ...&#10;&#10;## 预期结果&#10;...&#10;&#10;## 实际结果&#10;...">{{ issue.body if issue else '' }}</textarea>
+      <div id="body-preview" class="preview-pane"></div>
+      <p class="md-hint">支持 Markdown（会经过安全过滤）。建议包含：复现步骤、预期结果、实际结果。</p>
+    </div>
+    {% if not editing %}
+    <div class="form-grid">
+      <div>
+        <label>游戏版本（选填）</label>
+        <input type="text" name="game_version" value="{{ game_version_default }}" placeholder="如 0.3.0">
+      </div>
+      <div>
+        <label>系统信息（选填，自愿填写）</label>
+        <input type="text" name="sys_info" placeholder="如 Windows 11 / 显卡型号">
+      </div>
+    </div>
+    {% endif %}
+    {% if editing %}
+    <div style="margin-bottom:14px">
+      <label>标签（逗号分隔，仅管理员/版主可改终值）</label>
+      <input type="text" name="tags" placeholder="比如: 崩溃, 联网, UI">
+    </div>
+    {% endif %}
+    <div style="display:flex;gap:12px">
+      <button class="btn btn-brass" type="submit">{{ '保存修改' if editing else '提交 Issue' }}</button>
+      <a class="btn" href="{{ '/issue/' + issue.id|string if editing else '/issues' }}">取消</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

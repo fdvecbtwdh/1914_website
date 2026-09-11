@@ -1,0 +1,17 @@
+{
+  "id": "infantry_03",
+  "name": "突击步兵",
+  "nation": "neutral",
+  "type": "unit",
+  "unit_class": "infantry",
+  "cost_g": 40,
+  "cost_k": 1,
+  "attack": 2,
+  "defense": 3,
+  "vision_range": "adjacent_4",
+  "attack_range": "adjacent_4",
+  "abilities": ["响应"],
+  "rarity": "common",
+  "art": "",
+  "flavor_text": "接到命令即刻出发。"
+}

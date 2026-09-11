@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}管理后台 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>管理后台</h1></div>
+  {% include "_admin_nav.html" %}
+
+  <div class="stat-strip" style="margin-bottom:22px">
+    <div class="stat"><b>{{ stats.users }}</b><span>用户</span></div>
+    <div class="stat"><b>{{ stats.cards }}</b><span>卡牌</span></div>
+    <div class="stat"><b>{{ stats.issues }}</b><span>Issue</span></div>
+    <div class="stat"><b>{{ stats.comments }}</b><span>评论</span></div>
+    <div class="stat"><b style="color:{{ 'var(--red)' if stats.open_reports else 'inherit' }}">{{ stats.open_reports }}</b><span>待处理举报</span></div>
+    <div class="stat"><b>{{ stats.pending_sync }}</b><span>同步队列</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>最近系统日志</h2>
+    <table class="data">
+      <tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>详情</th></tr>
+      {% for a in recent_audit %}
+      <tr>
+        <td class="mono">{{ a.created_at }}</td>
+        <td>{{ a.actor_name or '系统' }}</td>
+        <td><span class="badge">{{ a.action }}</span></td>
+        <td>{{ a.target_type }}{% if a.target_id %} #{{ a.target_id }}{% endif %}</td>
+        <td>{{ a.detail }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">暂无日志</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}系统日志 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>系统日志（审计）</h1><span class="sub">{{ total }} 条</span></div>
+  {% include "_admin_nav.html" %}
+
+  <form class="filter-bar" method="get" action="/admin/audit">
+    <input type="text" name="action" value="{{ action_q }}" placeholder="按动作筛选，如 login / card_hide…" style="max-width:220px">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索详情 / 操作者…">
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if action_q or q %}<a class="filter-clear" href="/admin/audit">✕ 清除筛选</a>{% endif %}
+  </form>
+
+  <table class="data">
+    <tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>详情</th></tr>
+    {% for a in logs %}
+    <tr>
+      <td class="mono">{{ a.created_at }}</td>
+      <td>{{ a.actor_name or '系统' }}</td>
+      <td><span class="badge">{{ a.action }}</span></td>
+      <td>{{ a.target_type }}{% if a.target_id %} #{{ a.target_id }}{% endif %}</td>
+      <td>{{ a.detail }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="empty-state">暂无日志</td></tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/audit?action={{ action_q|urlencode }}&q={{ q|urlencode }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
