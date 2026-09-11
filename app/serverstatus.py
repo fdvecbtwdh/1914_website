@@ -60,6 +60,7 @@ def _web_status() -> dict:
     except Exception:
         db_ok = False
     vm = psutil.virtual_memory()
+    disk = psutil.disk_usage(str(cfg["UPLOAD_DIR"]))
     return {
         "status": "up",
         "os": platform.platform(),
@@ -72,6 +73,9 @@ def _web_status() -> dict:
         "mem_used_gb": round((vm.total - vm.available) / 1024 ** 3, 2),
         "mem_total_gb": round(vm.total / 1024 ** 3, 2),
         "mem_pct": vm.percent,
+        "disk_used_gb": round(disk.used / 1024 ** 3, 2),
+        "disk_total_gb": round(disk.total / 1024 ** 3, 2),
+        "disk_pct": disk.percent,
         "gpu": _gpu_status(),
         "db": "ok" if db_ok else "error",
         "db_size_mb": round(db_size / 1024 ** 2, 2),
@@ -82,7 +86,9 @@ def _game_status() -> dict:
     state = current_app.extensions.get("game_server")
     fresh = bool(state) and (time.time() - state["last_seen"] <= GAME_HEARTBEAT_TTL)
     base = {"available": False, "status": "不可用", "matches": None, "players": None,
+            "max_matches": None, "max_players": None,
             "cpu": None, "mem": None, "version": "", "last_seen": None,
+            "last_seen_str": "",
             "heartbeat_ttl": GAME_HEARTBEAT_TTL,
             "token_configured": bool(current_app.config["GAME_SERVER_TOKEN"])}
     if fresh:
@@ -90,6 +96,7 @@ def _game_status() -> dict:
             "available": True,
             "status": "在线" if state["status"] == "online" else state["status"],
             "matches": state["matches"], "players": state["players"],
+            "max_matches": state["max_matches"], "max_players": state["max_players"],
             "cpu": state["cpu"], "mem": state["mem"],
             "version": state["version"],
             "last_seen": int(state["last_seen"]),
@@ -146,6 +153,8 @@ def game_heartbeat():
         "status": status,
         "matches": _int("matches"),
         "players": _int("players"),
+        "max_matches": _int("max_matches"),
+        "max_players": _int("max_players"),
         "cpu": _float("cpu"),
         "mem": _float("mem"),
         "version": str(data.get("version", ""))[:40],

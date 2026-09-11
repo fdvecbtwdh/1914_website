@@ -948,15 +948,19 @@ class TestServerStatus(Base):
         r = self.client.post("/api/game-server/heartbeat",
                              headers={"X-Game-Token": "gsec"},
                              json={"status": "online", "matches": 3, "players": 8,
+                                   "max_matches": 10, "max_players": 50,
                                    "cpu": 42.5, "mem": 61, "version": "0.1.0"})
         self.assertEqual(r.status_code, 200)
         data = self.client.get("/api/status").get_json()
         self.assertTrue(data["game"]["available"])
         self.assertEqual(data["game"]["matches"], 3)
         self.assertEqual(data["game"]["players"], 8)
+        self.assertEqual(data["game"]["max_matches"], 10)
+        self.assertEqual(data["game"]["max_players"], 50)
         self.assertEqual(data["game"]["status"], "在线")
         html = self.client.get("/status").get_data(as_text=True)
         self.assertIn("在线", html)
+        self.assertIn("数据更新", html)  # "心跳"表述已替换
 
 
 

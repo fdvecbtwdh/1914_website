@@ -387,6 +387,21 @@ table.data td, table.data th { padding: 9px 12px; border-bottom: 1px solid var(-
 table.data tr:hover td { background: rgba(255,255,255,.02); }
 .mono { font-family: var(--font-typewriter); font-size: .92em; }
 
+/* ---------- 状态页进度条 ---------- */
+.stat-line { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.stat-line .s-label { width: 68px; flex-shrink: 0; color: var(--muted); font-size: .88rem; }
+.stat-line .s-bar {
+  flex: 1; height: 16px; background: var(--bg-2);
+  border: 1px solid var(--line-soft); border-radius: 999px; overflow: hidden;
+}
+.stat-line .s-fill { height: 100%; width: 0; background: var(--olive); transition: width .5s; }
+.stat-line .s-fill.warn { background: var(--brass); }
+.stat-line .s-fill.crit { background: var(--red); }
+.stat-line .s-val {
+  width: 185px; flex-shrink: 0; text-align: right;
+  font-size: .86rem; color: var(--text);
+}
+
 /* ---------- 视图切换 ---------- */
 .view-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; vertical-align: middle; }
 .view-toggle a {

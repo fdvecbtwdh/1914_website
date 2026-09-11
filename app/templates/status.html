@@ -6,7 +6,7 @@
 <div class="container">
   <div class="page-title">
     <h1>服务器状态</h1>
-    <span class="sub" id="refresh-hint">每 10 秒自动刷新</span>
+    <span class="sub" id="refresh-hint">每 30 秒自动刷新</span>
   </div>
 
   <div class="grid-2">
@@ -17,25 +17,37 @@
           {{ '在线' if web.status == 'up' else '不可用' }}
         </span>
       </h2>
-      <table class="meta-table" id="web-status">
+      <table class="meta-table">
         <tr><td>系统</td><td id="web-os">{{ web.os }}</td></tr>
         <tr><td>运行环境</td><td>Python {{ web.python }} · {{ web.server }}</td></tr>
         <tr><td>网站版本</td><td class="mono">v{{ web.app_version }}</td></tr>
         <tr><td>数据库</td><td>SQLite（{{ web.db }}{% if web.db == 'ok' %} · {{ web.db_size_mb }} MB{% endif %}）</td></tr>
         <tr><td>已运行</td><td id="web-uptime">{{ (web.uptime_sec // 86400) }} 天 {{ ((web.uptime_sec % 86400) // 3600) }} 小时 {{ ((web.uptime_sec % 3600) // 60) }} 分钟</td></tr>
-        <tr><td>CPU</td><td><span id="web-cpu">{{ web.cpu_pct }}</span>%（{{ web.cpu_cores }} 逻辑核心）</td></tr>
-        <tr><td>内存</td><td><span id="web-mem">{{ web.mem_used_gb }} / {{ web.mem_total_gb }} GB（{{ web.mem_pct }}%）</span></td></tr>
-        <tr>
-          <td>GPU</td>
-          <td id="web-gpu">
-            {% if web.gpu.available %}
-              {{ web.gpu.name }} · 占用 {{ web.gpu.util }}% · 显存 {{ web.gpu.mem_used }} / {{ web.gpu.mem_total }} MB
-            {% else %}
-              <span style="color:var(--muted)">不可用（未检测到 NVIDIA GPU / 驱动）</span>
-            {% endif %}
-          </td>
-        </tr>
       </table>
+
+      <div class="stat-line"><span class="s-label">CPU</span>
+        <div class="s-bar"><div class="s-fill" id="bar-web-cpu" style="width:{{ web.cpu_pct }}%"></div></div>
+        <span class="s-val" id="val-web-cpu">{{ web.cpu_pct }}%（{{ web.cpu_cores }} 核）</span>
+      </div>
+      <div class="stat-line"><span class="s-label">内存</span>
+        <div class="s-bar"><div class="s-fill" id="bar-web-mem" style="width:{{ web.mem_pct }}%"></div></div>
+        <span class="s-val" id="val-web-mem">{{ web.mem_used_gb }} / {{ web.mem_total_gb }} GB（{{ web.mem_pct }}%）</span>
+      </div>
+      <div class="stat-line"><span class="s-label">数据盘</span>
+        <div class="s-bar"><div class="s-fill" id="bar-web-disk" style="width:{{ web.disk_pct }}%"></div></div>
+        <span class="s-val" id="val-web-disk">{{ web.disk_used_gb }} / {{ web.disk_total_gb }} GB（{{ web.disk_pct }}%）</span>
+      </div>
+      <div class="stat-line"><span class="s-label">GPU 占用</span>
+        <div class="s-bar"><div class="s-fill" id="bar-gpu-util"></div></div>
+        <span class="s-val" id="val-gpu-util">—</span>
+      </div>
+      <div class="stat-line"><span class="s-label">GPU 显存</span>
+        <div class="s-bar"><div class="s-fill" id="bar-gpu-mem"></div></div>
+        <span class="s-val" id="val-gpu-mem">—</span>
+      </div>
+      <p class="md-hint" id="gpu-name" style="margin:6px 0 0">
+        {% if web.gpu.available %}GPU：{{ web.gpu.name }}{% else %}GPU：不可用（未检测到 NVIDIA GPU / 驱动）{% endif %}
+      </p>
     </div>
 
     <!-- 游戏服务器（预留） -->
@@ -45,23 +57,36 @@
           {{ game.status }}
         </span>
       </h2>
-      <table class="meta-table" id="game-status">
+      <table class="meta-table">
         <tr><td>部署位置</td><td>与网站同一设备（预留）</td></tr>
-        <tr><td>当前对局数</td><td id="game-matches">{{ game.matches if game.available else '—' }}</td></tr>
-        <tr><td>在线人数</td><td id="game-players">{{ game.players if game.available else '—' }}</td></tr>
-        <tr><td>CPU</td><td><span id="game-cpu">{{ (game.cpu ~ '%') if game.available else '—' }}</span></td></tr>
-        <tr><td>内存</td><td><span id="game-mem">{{ (game.mem ~ '%') if game.available else '—' }}</span></td></tr>
         <tr><td>游戏版本</td><td id="game-version" class="mono">{{ game.version or '—' }}</td></tr>
-        <tr><td>最近心跳</td><td id="game-heartbeat">
-          {% if game.available %}{{ game.last_seen_str }}{% else %}无（超过 {{ ttl }} 秒未收到心跳即判定不可用）{% endif %}
+        <tr><td>数据更新</td><td id="game-updated">
+          {% if game.available %}{{ game.last_seen_str }}{% else %}无（超过 {{ ttl }} 秒未上报即判定不可用）{% endif %}
         </td></tr>
       </table>
+
+      <div class="stat-line"><span class="s-label">对局</span>
+        <div class="s-bar"><div class="s-fill" id="bar-game-matches"></div></div>
+        <span class="s-val" id="val-game-matches">—</span>
+      </div>
+      <div class="stat-line"><span class="s-label">在线人数</span>
+        <div class="s-bar"><div class="s-fill" id="bar-game-players"></div></div>
+        <span class="s-val" id="val-game-players">—</span>
+      </div>
+      <div class="stat-line"><span class="s-label">CPU</span>
+        <div class="s-bar"><div class="s-fill" id="bar-game-cpu"></div></div>
+        <span class="s-val" id="val-game-cpu">—</span>
+      </div>
+      <div class="stat-line"><span class="s-label">内存</span>
+        <div class="s-bar"><div class="s-fill" id="bar-game-mem"></div></div>
+        <span class="s-val" id="val-game-mem">—</span>
+      </div>
       <p class="md-hint">
         {% if not game.token_configured %}
-          游戏服务端尚未接入：需在网站 .env 配置 GAME_SERVER_TOKEN，并由游戏服按协议推送心跳
+          游戏服务端尚未接入：需在网站 .env 配置 GAME_SERVER_TOKEN，并由游戏服按协议上报数据
           （协议见游戏项目 docs/web-integration.md）。
         {% else %}
-          心跳接口已启用；游戏服务端按 docs/web-integration.md 协议上报。
+          数据接口已启用；游戏服务端按 docs/web-integration.md 协议上报（对局/在线人数显示为 已占用 / 上限）。
         {% endif %}
       </p>
     </div>
@@ -69,35 +94,74 @@
 </div>
 
 <script>
-  // 每 10 秒拉取一次状态，就地更新数字
   function fmtUptime(s) {
     return Math.floor(s / 86400) + " 天 " + Math.floor((s % 86400) / 3600) + " 小时 " + Math.floor((s % 3600) / 60) + " 分钟";
   }
   function setText(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; }
+  function setBar(barId, pct) {
+    var fill = document.getElementById(barId);
+    if (!fill) return;
+    pct = Math.max(0, Math.min(100, pct || 0));
+    fill.style.width = pct + "%";
+    fill.className = "s-fill" + (pct >= 85 ? " crit" : pct >= 60 ? " warn" : "");
+  }
+  function setUsedBar(prefix, used, max, unit) {
+    // 已占用/上限 型指标：used、max 为数量，max<=0 时无上限只显示数量
+    if (max && max > 0) {
+      var pct = Math.min(100, used / max * 100);
+      setBar("bar-" + prefix, pct);
+      setText("val-" + prefix, used + " / " + max + " " + unit + "（" + Math.round(pct) + "%）");
+    } else {
+      setBar("bar-" + prefix, 0);
+      setText("val-" + prefix, used + " / — " + unit);
+    }
+  }
   function refresh() {
     fetch("/api/status", { credentials: "same-origin" }).then(r => r.json()).then(function (s) {
       var w = s.web, g = s.game;
       setText("web-os", w.os);
       setText("web-uptime", fmtUptime(w.uptime_sec));
-      setText("web-cpu", w.cpu_pct);
-      setText("web-mem", w.mem_used_gb + " / " + w.mem_total_gb + " GB（" + w.mem_pct + "%）");
+      setBar("bar-web-cpu", w.cpu_pct);
+      setText("val-web-cpu", w.cpu_pct + "%（" + w.cpu_cores + " 核）");
+      setBar("bar-web-mem", w.mem_pct);
+      setText("val-web-mem", w.mem_used_gb + " / " + w.mem_total_gb + " GB（" + w.mem_pct + "%）");
+      setBar("bar-web-disk", w.disk_pct);
+      setText("val-web-disk", w.disk_used_gb + " / " + w.disk_total_gb + " GB（" + w.disk_pct + "%）");
       var wb = document.getElementById("web-badge");
       wb.textContent = w.status === "up" ? "在线" : "不可用";
       wb.className = "badge " + (w.status === "up" ? "badge-olive" : "badge-red");
-      setText("web-gpu", w.gpu.available
-        ? w.gpu.name + " · 占用 " + w.gpu.util + "% · 显存 " + w.gpu.mem_used + " / " + w.gpu.mem_total + " MB"
-        : "不可用（未检测到 NVIDIA GPU / 驱动）");
-      setText("game-matches", g.available ? g.matches : "—");
-      setText("game-players", g.available ? g.players : "—");
-      setText("game-cpu", g.available ? g.cpu + "%" : "—");
-      setText("game-mem", g.available ? g.mem + "%" : "—");
-      setText("game-version", g.available ? g.version : "—");
-      setText("game-heartbeat", g.available ? new Date(g.last_seen * 1000).toLocaleString() : "无（超过 " + g.heartbeat_ttl + " 秒未收到心跳即判定不可用）");
+      if (w.gpu.available) {
+        setBar("bar-gpu-util", w.gpu.util);
+        setText("val-gpu-util", (w.gpu.util ?? 0) + "%");
+        var memPct = w.gpu.mem_total ? Math.min(100, w.gpu.mem_used / w.gpu.mem_total * 100) : 0;
+        setBar("bar-gpu-mem", memPct);
+        setText("val-gpu-mem", w.gpu.mem_used + " / " + w.gpu.mem_total + " MB（" + Math.round(memPct) + "%）");
+        setText("gpu-name", "GPU：" + w.gpu.name);
+      } else {
+        setBar("bar-gpu-util", 0); setBar("bar-gpu-mem", 0);
+        setText("val-gpu-util", "—"); setText("val-gpu-mem", "—");
+        setText("gpu-name", "GPU：不可用（未检测到 NVIDIA GPU / 驱动）");
+      }
       var gb = document.getElementById("game-badge");
       gb.textContent = g.available ? g.status : "不可用";
       gb.className = "badge " + (g.available ? "badge-olive" : "badge-red");
+      setText("game-version", g.available ? (g.version || "—") : "—");
+      setText("game-updated", g.available ? g.last_seen_str : "无（超过 " + g.heartbeat_ttl + " 秒未上报即判定不可用）");
+      if (g.available) {
+        setUsedBar("game-matches", g.matches, g.max_matches, "场");
+        setUsedBar("game-players", g.players, g.max_players, "人");
+        setBar("bar-game-cpu", g.cpu);
+        setText("val-game-cpu", g.cpu + "%");
+        setBar("bar-game-mem", g.mem);
+        setText("val-game-mem", g.mem + "%");
+      } else {
+        ["game-matches", "game-players", "game-cpu", "game-mem"].forEach(function (p) {
+          setBar("bar-" + p, 0); setText("val-" + p, "—");
+        });
+      }
     }).catch(function () {});
   }
-  setInterval(refresh, 10000);
+  refresh();
+  setInterval(refresh, 30000);
 </script>
 {% endblock %}
