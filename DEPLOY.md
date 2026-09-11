@@ -188,7 +188,11 @@ PORT=8000
 -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
 ```
 
-**5.2 GitHub 同步（可选）**：想要网站 Issue 推送到 GitHub，在 `.env` 里填
+**5.2 游戏服务器状态页（可选）**：状态页 `/status` 的"游戏服务器"面板需要游戏服务端
+按协议上报数据。在 `.env` 中设置 `GAME_SERVER_TOKEN=<随机字符串>` 启用接收接口，
+协议见游戏项目 `docs/web-integration.md`；不设置则该面板显示"不可用"，网站其余功能不受影响。
+
+**5.3 GitHub 同步（可选）**：想要网站 Issue 推送到 GitHub，在 `.env` 里填
 `GITHUB_TOKEN=ghp_xxx`（GitHub → Settings → Developer settings → PAT classic，勾 `repo` 权限）。
 不填则该功能静默关闭，站点一切正常。
 
@@ -352,6 +356,8 @@ curl.exe -s https://1914.fun/cards | findstr "步兵"
 # 3. SEO 文件
 curl.exe -s -o NUL -w "%{http_code}" https://1914.fun/sitemap.xml   # 200
 curl.exe -s -o NUL -w "%{http_code}" https://1914.fun/robots.txt    # 200
+# 4. 状态页（网站面板应显示"在线"与真实 CPU/内存/GPU 数据）
+curl.exe -s -o NUL -w "%{http_code}" https://1914.fun/status        # 200
 ```
 
 浏览器走查一遍：
@@ -360,6 +366,7 @@ curl.exe -s -o NUL -w "%{http_code}" https://1914.fun/robots.txt    # 200
 - [ ] 卡牌列表三种视图可切换，官方/自制分区正常
 - [ ] 注册一个测试账号 → 投稿卡牌 → 提交 Issue → 评论 → 投票
 - [ ] 管理员登录 → 后台筛选/批量操作正常
+- [ ] 状态页 /status 数据正常（CPU/内存/GPU/系统运行时间）
 - [ ] 手机访问排版正常
 
 **最后确认 `.env` 里 `COOKIE_SECURE=1`**（登录 cookie 仅走 HTTPS）。
