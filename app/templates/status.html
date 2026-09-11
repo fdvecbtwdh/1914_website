@@ -63,7 +63,7 @@
         <tr><td>部署位置</td><td>与网站同一设备（预留）</td></tr>
         <tr><td>游戏版本</td><td id="game-version" class="mono">{{ game.version or '—' }}</td></tr>
         <tr><td>数据更新</td><td id="game-updated">
-          {% if game.available %}{{ game.last_seen_str }}{% else %}无（超过 {{ ttl }} 秒未上报即判定不可用）{% endif %}
+          {% if game.available %}{{ game.last_seen_str }}{% else %}无{% endif %}
         </td></tr>
       </table>
 
@@ -150,7 +150,7 @@
       gb.textContent = g.available ? g.status : "不可用";
       gb.className = "badge " + (g.available ? "badge-olive" : "badge-red");
       setText("game-version", g.available ? (g.version || "—") : "—");
-      setText("game-updated", g.available ? g.last_seen_str : "无（超过 " + g.heartbeat_ttl + " 秒未上报即判定不可用）");
+      setText("game-updated", g.available ? g.last_seen_str : "无");
       if (g.available) {
         setUsedBar("game-matches", g.matches, g.max_matches, "场");
         setUsedBar("game-players", g.players, g.max_players, "人");
