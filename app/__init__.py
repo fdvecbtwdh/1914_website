@@ -41,6 +41,10 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(nav_bp_mod.bp)
     app.register_blueprint(ss_bp_mod.bp)
 
+    # 状态页后台采样线程（网站启动时采样一次，之后每 30 秒更新快照）
+    if app.config.get("STATUS_SAMPLER_ENABLED", True):
+        ss_bp_mod.start_sampler(app)
+
     # ---- 模板全局 ----
     from .gameconstants import (RANGES, ABILITIES, NATIONS, UNIT_CLASSES,
                                 UNIT_CLASS_ICONS, RARITIES, CARD_TYPES)

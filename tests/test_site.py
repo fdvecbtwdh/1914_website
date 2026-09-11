@@ -37,6 +37,7 @@ class Base(unittest.TestCase):
             "GITHUB_SYNC_ENABLED": False,
             "GITHUB_TOKEN": "",
             "COOKIE_SECURE": False,
+            "STATUS_SAMPLER_ENABLED": False,
         }
         self.app = create_app(config)
         self.client = self.app.test_client()

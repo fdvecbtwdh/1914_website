@@ -63,6 +63,9 @@ class Config:
     # 设置后，游戏服务端按 docs/web-integration.md 协议推送心跳；留空则状态页显示"不可用"
     GAME_SERVER_TOKEN = os.environ.get("GAME_SERVER_TOKEN", "")
 
+    # --- 状态页采样 ---
+    STATUS_SAMPLER_ENABLED = _bool("STATUS_SAMPLER_ENABLED", "1")
+
     # --- 会话 / 安全 ---
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

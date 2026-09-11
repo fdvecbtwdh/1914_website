@@ -1,12 +1,16 @@
 """服务器状态页（/status）与状态 API。
-- 网站服务器：真实采集 OS / Python / 数据库 / 运行时长 / CPU / 内存 / GPU(nvidia-smi)
+- 网站服务器：真实采集 OS / Python / 数据库 / 系统运行时长 / CPU / 内存 / GPU(nvidia-smi)
 - 游戏服务器：占位区。游戏服务端按 heartbeat 协议推送数据（见游戏项目 docs/web-integration.md），
-  未收到心跳或心跳过期（>60s）时显示"不可用"。
+  未收到上报或数据过期（>60s）时显示"不可用"。
+
+采集策略：网站启动时采样一次，后台线程每 30 秒更新快照；
+页面与 API 只读快照——访问量大小不影响采集频率。
 """
 import hmac
 import platform
 import re
 import subprocess
+import threading
 import time
 
 from flask import Blueprint, current_app, jsonify, render_template, request
@@ -16,8 +20,11 @@ from . import db, auth
 bp = Blueprint("serverstatus", __name__)
 
 GAME_HEARTBEAT_TTL = 60  # 秒，超过视为游戏服不可用
+SAMPLE_INTERVAL = 30     # 秒，后台采样周期
 _gpu_cache = {"at": 0.0, "data": None}
 _cpu_model_cache = None
+_snapshot_lock = threading.Lock()
+_snapshot = {"at": 0.0, "web": None}
 
 
 def _cpu_model() -> str:
@@ -77,6 +84,22 @@ def _num(v):
 
 
 def _web_status() -> dict:
+    """返回最近一次采样的网站指标快照；快照不存在时（如测试环境）即时采集一次。"""
+    if _snapshot["web"] is not None:
+        return _snapshot["web"]
+    return collect_now()
+
+
+def collect_now() -> dict:
+    """立即采样一次并更新快照。"""
+    with _snapshot_lock:
+        web = _collect()
+        _snapshot["at"] = time.time()
+        _snapshot["web"] = web
+        return web
+
+
+def _collect() -> dict:
     import psutil
     cfg = current_app.config
     proc = psutil.Process()
@@ -140,13 +163,27 @@ def _game_status() -> dict:
 def status_page():
     if not auth.is_moderator() and not current_app.config.get("STATUS_PUBLIC", True):
         auth.abort(403)
-    return render_template("status.html", web=_web_status(), game=_game_status(),
-                           ttl=GAME_HEARTBEAT_TTL)
+    web = _web_status()
+    game = _game_status()
+    return render_template("status.html", web=web, game=game, ttl=GAME_HEARTBEAT_TTL)
 
 
 @bp.route("/api/status")
 def status_json():
     return jsonify({"web": _web_status(), "game": _game_status()})
+
+
+def start_sampler(app) -> None:
+    """启动后台采样线程：立即采样一次，之后每 30 秒更新快照（daemon，随进程退出）。"""
+    def loop():
+        while True:
+            try:
+                with app.app_context():
+                    collect_now()
+            except Exception:
+                pass
+            time.sleep(SAMPLE_INTERVAL)
+    threading.Thread(target=loop, name="status-sampler", daemon=True).start()
 
 
 @bp.route("/api/game-server/heartbeat", methods=["POST"])
