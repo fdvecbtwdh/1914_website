@@ -8,11 +8,13 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div style="margin-bottom:14px">
         <label>用户名或邮箱</label>
-        <input type="text" name="username" required autofocus autocomplete="username">
+        <input type="text" name="username" required autofocus autocomplete="username"
+               value="{{ username or '' }}">
       </div>
       <div style="margin-bottom:18px">
         <label>密码</label>
-        <input type="password" name="password" required autocomplete="current-password">
+        <input type="password" name="password" required autocomplete="current-password"
+               value="{{ password or '' }}">
       </div>
       <button class="btn btn-brass" type="submit" style="width:100%">登录</button>
     </form>

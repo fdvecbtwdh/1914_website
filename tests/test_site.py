@@ -220,6 +220,21 @@ class TestAuth(Base):
         r = self.login("eve", "Passw0rd123")
         self.assertIn("用户名或密码错误", r.get_data(as_text=True))
 
+    def test_failed_login_keeps_credentials(self):
+        """登录失败后保留用户名和密码输入，不强制重打。"""
+        self.set_csrf()
+        r = self.client.post("/login", data={
+            "csrf_token": "t", "username": "alice", "password": "wrongpass1"})
+        html = r.get_data(as_text=True)
+        self.assertIn('value="alice"', html)
+        self.assertIn('value="wrongpass1"', html)
+        self.assertIn("用户名或密码错误", html)
+        # GET 登录页不带预填
+        html = self.client.get("/login").get_data(as_text=True)
+        self.assertNotIn('value="alice"', html)
+
+
+
     def test_open_redirect_blocked(self):
         self.register("frank", "Passw0rd123")
         self.logout()

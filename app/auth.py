@@ -290,10 +290,13 @@ def login():
             register_login_failure("login", ident)
             register_login_failure("login", ip)
             flash("用户名或密码错误", "danger")
+            # 保留输入，方便直接改密码重试
+            return render_template("auth/login.html", username=ident, password=password)
         elif not verify_password(user["password_hash"], password):
             register_login_failure("login", ident)
             register_login_failure("login", ip)
             flash("用户名或密码错误", "danger")
+            return render_template("auth/login.html", username=ident, password=password)
         else:
             clear_login_failures("login", ident)
             clear_login_failures("login", ip)
