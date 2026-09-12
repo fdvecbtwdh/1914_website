@@ -230,6 +230,24 @@
     tagDialog.showModal();
   });
 
+  /* ---------- 移动端筛选折叠：小屏默认收起（有已选条件时保持展开），桌面始终展开 ---------- */
+  document.querySelectorAll("details.filter-fold").forEach(function (d) {
+    var count = 0;
+    d.querySelectorAll("select, input:not([type=hidden])").forEach(function (el) {
+      if (el.name === "sort" || !el.value) return;
+      count++;
+    });
+    var badge = d.querySelector("[data-fold-count]");
+    if (badge && count) badge.textContent = "（已选 " + count + " 项）";
+    var mq = window.matchMedia("(max-width: 760px)");
+    var sync = function () {
+      if (mq.matches && !count) d.removeAttribute("open");
+      else d.setAttribute("open", "");
+    };
+    sync();
+    if (mq.addEventListener) mq.addEventListener("change", sync);
+  });
+
   /* ---------- 移动端抽屉菜单 ---------- */
   var menuToggle = document.getElementById("menu-toggle");
   if (menuToggle) {

@@ -27,7 +27,9 @@
     <a href="/cards?source=community&amp;sort={{ sort }}" {% if source == 'community' %}class="active"{% endif %}>✎ 玩家自制</a>
   </div>
 
-  <form class="filter-bar" method="get" action="/cards">
+  <details class="filter-fold" open>
+    <summary>筛选条件 <span data-fold-count></span></summary>
+    <form class="filter-bar" method="get" action="/cards">
     <input type="search" name="q" placeholder="搜索卡牌名称 / 描述 / 风味文字…" value="{{ q }}">
     <select name="type">
       <option value="">全部类型</option>
@@ -60,7 +62,8 @@
       {{ view_link('compact', '▣', '图标') }}
       {{ view_link('list', '☰', '列表') }}
     </span>
-  </form>
+    </form>
+  </details>
 
   {% if tag %}
   <p style="margin:0 0 14px;color:var(--text-dim)">筛选标签：

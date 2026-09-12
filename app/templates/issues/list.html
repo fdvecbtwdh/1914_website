@@ -22,7 +22,9 @@
     <a href="/issues?status=all" {% if status == 'all' %}class="active"{% endif %}>全部 <span class="count">{{ counts.all }}</span></a>
   </div>
 
-  <form class="filter-bar" method="get" action="/issues">
+  <details class="filter-fold" open>
+    <summary>筛选条件 <span data-fold-count></span></summary>
+    <form class="filter-bar" method="get" action="/issues">
     <input type="search" name="q" placeholder="搜索标题 / 内容…" value="{{ q }}">
     {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
     <select name="priority">
@@ -49,7 +51,8 @@
       <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>最早创建</option>
       <option value="hot" {% if sort == 'hot' %}selected{% endif %}>最多投票</option>
     </select>
-  </form>
+    </form>
+  </details>
 
   {% if label %}
   <p style="margin:0 0 14px">筛选标签：<a href="/issues?status={{ status }}"><span class="label-chip">{{ label }} ✕</span></a></p>

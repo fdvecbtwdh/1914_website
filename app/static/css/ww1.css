@@ -507,6 +507,8 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
 
 /* ---------- 移动端 ---------- */
 .menu-toggle { display: none; }
+/* 筛选折叠容器：桌面端 summary 隐藏、内容常开（open 由 JS 兜底）；仅移动端显示 summary */
+.filter-fold > summary { display: none; }
 @media (max-width: 760px) {
   .header-inner { gap: 12px; height: auto; flex-wrap: wrap; padding: 8px 14px; }
   /* 右上角 ☰ 按钮：竖向抽屉菜单开关 */
@@ -520,6 +522,7 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .site-header.open .main-nav,
   .site-header.open .header-actions {
     display: flex; flex-direction: column; align-items: stretch;
+    flex: none; /* 覆盖 .main-nav 的 flex:1，否则 width:100% 失效、两块挤成左右两列 */
     width: 100%; gap: 0;
   }
   .site-header.open .main-nav { order: 3; border-top: 1px solid var(--line-soft); }
@@ -529,6 +532,22 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .site-header.open .header-actions .btn { text-align: center; padding: 9px 12px; }
   .site-header.open .header-actions form { display: block; }
   .site-header.open .header-actions form button { width: 100%; }
+  /* 筛选区：折叠为一行按钮，点开才展开控件，省出一屏内容高度 */
+  .filter-fold > summary {
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; list-style: none;
+    padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel-2); color: var(--text-dim);
+    font-family: var(--font-display); font-size: .95rem; letter-spacing: .05em;
+  }
+  .filter-fold > summary::-webkit-details-marker { display: none; }
+  .filter-fold > summary::after { content: "▾"; margin-left: auto; color: var(--brass); }
+  .filter-fold[open] > summary::after { content: "▴"; }
+  .filter-fold[open] > summary { margin-bottom: 10px; }
+  /* 分类/状态标签行：不折行，改为横向轻扫 */
+  .tab-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tab-row::-webkit-scrollbar { display: none; }
+  .tab-row a { white-space: nowrap; flex: none; }
   .hero { padding: 30px 20px 26px; }
   .hero h1 { font-size: 2.2rem; }
   html { font-size: 14px; }
