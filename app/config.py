@@ -80,6 +80,7 @@ class Config:
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
     MAIL_FROM = os.environ.get("MAIL_FROM", "") or os.environ.get("MAIL_USER", "")
     MAIL_USE_TLS = _bool("MAIL_USE_TLS", "1")
+    MAIL_USE_SSL = _bool("MAIL_USE_SSL", "0")   # 465 端口用 SSL=1；587 用 STARTTLS=0
 
     # --- 账户恢复 ---
     RECOVER_TOKEN_MINUTES = int(os.environ.get("RECOVER_TOKEN_MINUTES", "30"))

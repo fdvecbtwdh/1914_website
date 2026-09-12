@@ -27,19 +27,20 @@ def send_mail(to: str, subject: str, html_body: str) -> bool:
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html", "utf-8"))
     try:
-        if cfg.get("MAIL_USE_TLS"):
-            with smtplib.SMTP(cfg["MAIL_HOST"], cfg["MAIL_PORT"], timeout=15) as s:
-                s.ehlo()
-                s.starttls(context=ssl_context())
-                s.ehlo()
-                if cfg.get("MAIL_USER"):
-                    s.login(cfg["MAIL_USER"], cfg["MAIL_PASSWORD"])
-                s.send_message(msg)
+        if cfg.get("MAIL_USE_SSL"):
+            # 465 端口（隐式 SSL）
+            server = smtplib.SMTP_SSL(cfg["MAIL_HOST"], cfg["MAIL_PORT"], timeout=15,
+                                      context=ssl_context())
         else:
-            with smtplib.SMTP(cfg["MAIL_HOST"], cfg["MAIL_PORT"], timeout=15) as s:
-                if cfg.get("MAIL_USER"):
-                    s.login(cfg["MAIL_USER"], cfg["MAIL_PASSWORD"])
-                s.send_message(msg)
+            server = smtplib.SMTP(cfg["MAIL_HOST"], cfg["MAIL_PORT"], timeout=15)
+        with server:
+            server.ehlo()
+            if cfg.get("MAIL_USE_TLS") and not cfg.get("MAIL_USE_SSL"):
+                server.starttls(context=ssl_context())
+                server.ehlo()
+            if cfg.get("MAIL_USER"):
+                server.login(cfg["MAIL_USER"], cfg["MAIL_PASSWORD"])
+            server.send_message(msg)
         return True
     except Exception:
         log.exception("邮件发送失败: to=%s subject=%s", to, subject)
