@@ -53,7 +53,7 @@
     <button class="btn btn-sm" type="submit">筛选</button>
     <span style="flex:1"></span>
     <select name="sort" onchange="this.form.submit()">
-      <option value="latest" {% if sort == 'latest' %}selected{% endif %}>最新发布</option>
+      <option value="latest" {% if sort == 'latest' %}selected{% endif %}>最新创建</option>
       <option value="hot" {% if sort == 'hot' %}selected{% endif %}>最多投票</option>
       <option value="discussed" {% if sort == 'discussed' %}selected{% endif %}>最多评论</option>
     </select>
