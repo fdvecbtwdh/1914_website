@@ -2,6 +2,8 @@
 会话令牌存数据库（可服务端吊销），客户端只持有 opaque token（HttpOnly cookie）。
 """
 import functools
+import hashlib
+import hmac
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -68,6 +70,24 @@ def check_username(username: str) -> str | None:
     if not USERNAME_RE.match(username):
         return "用户名只能包含中文、字母、数字、下划线和连字符"
     return None
+
+
+# ---------- 安全问题 ----------
+
+def hash_answer(answer: str) -> str:
+    """安全问题答案不以明文存储：归一化后用 SECRET_KEY 派生 HMAC-SHA256。"""
+    normalized = re.sub(r"\s+", " ", (answer or "").strip().lower())
+    key = current_app.config["SECRET_KEY"].encode()
+    return hmac.new(key, normalized.encode(), hashlib.sha256).hexdigest()
+
+
+def check_answer(answer: str, hashed: str) -> bool:
+    if not hashed:
+        return False
+    normalized = re.sub(r"\s+", " ", (answer or "").strip().lower())
+    key = current_app.config["SECRET_KEY"].encode()
+    return hmac.compare_digest(
+        hmac.new(key, normalized.encode(), hashlib.sha256).hexdigest(), hashed)
 
 
 # ---------- 会话 ----------
@@ -178,7 +198,36 @@ def check_csrf() -> None:
 # ---------- 登录限速 ----------
 
 def _rate_key(kind: str, ident: str) -> str:
-    return f"{kind}:{ident.lower()}"
+    return f"{kind}:{str(ident).lower()}"
+
+def throttle(kind: str, ident: str, max_hits: int, window_min: int = 15) -> bool:
+    """记录一次命中，返回是否已超过窗口内允许次数。"""
+    key = _rate_key(kind, ident)
+    now_s = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    row = db.query("SELECT * FROM rate_limits WHERE key = ?", (key,), one=True)
+    if row is None:
+        db.execute("INSERT INTO rate_limits (key, window_start, fail_count) VALUES (?,?,1)",
+                   (key, now_s))
+        return False
+    start = datetime.strptime(row["window_start"], "%Y-%m-%d %H:%M:%S")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if now - start > timedelta(minutes=window_min):
+        db.execute("UPDATE rate_limits SET window_start = ?, fail_count = 1 WHERE key = ?",
+                   (now_s, key))
+        return False
+    db.execute("UPDATE rate_limits SET fail_count = fail_count + 1 WHERE key = ?", (key,))
+    return row["fail_count"] + 1 > max_hits
+
+
+def is_throttled(kind: str, ident: str, max_hits: int, window_min: int = 15) -> bool:
+    key = _rate_key(kind, ident)
+    row = db.query("SELECT * FROM rate_limits WHERE key = ?", (key,), one=True)
+    if row is None:
+        return False
+    start = datetime.strptime(row["window_start"], "%Y-%m-%d %H:%M:%S")
+    if datetime.now(timezone.utc).replace(tzinfo=None) - start > timedelta(minutes=window_min):
+        return False
+    return row["fail_count"] >= max_hits
 
 
 def register_login_failure(kind: str, ident: str) -> None:
@@ -243,6 +292,8 @@ def register():
         password = request.form.get("password") or ""
         confirm = request.form.get("confirm") or ""
 
+        security_question = (request.form.get("security_question") or "").strip()[:200]
+        security_answer = (request.form.get("security_answer") or "").strip()
         err = check_username(username)
         if err:
             flash(err, "danger")
@@ -252,20 +303,26 @@ def register():
             flash(err, "danger")
         elif password != confirm:
             flash("两次输入的密码不一致", "danger")
+        elif bool(security_question) != bool(security_answer):
+            flash("安全问题和安全问题答案需要同时填写（或同时留空）", "danger")
         elif db.query("SELECT 1 FROM users WHERE username = ?", (username,), one=True):
             flash("用户名已被占用", "danger")
         elif email and db.query("SELECT 1 FROM users WHERE email = ?", (email,), one=True):
             flash("邮箱已被注册", "danger")
         else:
             uid = db.execute(
-                "INSERT INTO users (username, email, password_hash) VALUES (?,?,?)",
-                (username, email or None, hash_password(password)))
+                """INSERT INTO users (username, email, password_hash,
+                   security_question, security_answer_hash) VALUES (?,?,?,?,?)""",
+                (username, email or None, hash_password(password),
+                 security_question or None,
+                 hash_answer(security_answer) if security_answer else None))
             audit("user_register", "user", uid, username)
             create_session(uid)
             flash(f"欢迎加入 1914，{username}！", "success")
             dest = request.args.get("next") or url_for("misc.home")
             return redirect(_safe_next(dest))
-    return render_template("auth/register.html")
+    return render_template("auth/register.html",
+                           values=request.form if request.method == "POST" else None)
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -323,3 +380,182 @@ def _safe_next(dest: str) -> str:
     if dest and dest.startswith("/") and not dest.startswith("//"):
         return dest
     return "/index"
+
+
+# ---------- 账户恢复 ----------
+
+RECOVER_ENTRY_MAX = 20   # 入口尝试 / 15 分钟 / IP
+RECOVER_MAIL_MAX = 2     # 邮件发送 / 15 分钟 / 账户
+RECOVER_MAIL_IP_MAX = 6  # 邮件发送 / 15 分钟 / IP
+RECOVER_Q_MAX = 5        # 安全问题答案错误 / 15 分钟 / 账户
+RECOVER_Q_IP_MAX = 10    # 安全问题答案错误 / 15 分钟 / IP
+
+
+def _mask_email(email: str) -> str:
+    name, _, domain = (email or "").partition("@")
+    if not domain:
+        return ""
+    shown = name[:2] if len(name) > 2 else name[:1]
+    return f"{shown}***@{domain}"
+
+
+def _recover_user():
+    uid = session.get("recover_uid")
+    if not uid:
+        return None
+    return db.query("SELECT * FROM users WHERE id = ?", (uid,), one=True)
+
+
+@bp.route("/recover", methods=["GET", "POST"])
+def recover():
+    if request.method == "POST":
+        check_csrf()
+        ident = (request.form.get("ident") or "").strip().lstrip("@")
+        if throttle("recover_entry", request.remote_addr or "?", RECOVER_ENTRY_MAX, 15):
+            flash("尝试过于频繁，请稍后再试。", "warning")
+            return render_template("auth/forgot.html")
+        user = db.query("SELECT * FROM users WHERE username = ? OR email = ?",
+                        (ident, ident.lower()), one=True)
+        if user is None or user["is_banned"]:
+            flash("无法识别该账户，请检查用户名或邮箱是否正确。", "danger")
+            return render_template("auth/forgot.html")
+        methods = []
+        if user["email"]:
+            methods.append("email")
+        if user["security_question"]:
+            methods.append("question")
+        if not methods:
+            flash("此账户没有设置可用的恢复方式，因此无法通过此功能恢复密码。", "danger")
+            return render_template("auth/forgot.html")
+        session["recover_uid"] = user["id"]
+        session["recover_methods"] = methods
+        return redirect(url_for("auth.recover_methods"))
+    return render_template("auth/forgot.html")
+
+
+@bp.route("/recover/methods")
+def recover_methods():
+    user = _recover_user()
+    if user is None:
+        return redirect(url_for("auth.recover"))
+    from .emailer import mail_configured
+    return render_template("auth/recover_methods.html",
+                           recover_user=user,
+                           email_masked=_mask_email(user["email"]),
+                           mail_ready=mail_configured())
+
+
+@bp.route("/recover/email", methods=["POST"])
+def recover_email():
+    user = _recover_user()
+    if user is None or not user["email"]:
+        return redirect(url_for("auth.recover"))
+    ip = request.remote_addr or "?"
+    if throttle("recover_mail", str(user["id"]), RECOVER_MAIL_MAX, 15) or        throttle("recover_mail_ip", ip, RECOVER_MAIL_IP_MAX, 15):
+        flash("恢复请求过于频繁，请稍后再试。", "warning")
+        return redirect(url_for("auth.recover_methods"))
+    from .emailer import send_mail, mail_configured
+    if not mail_configured():
+        flash("邮件功能暂未启用，请联系管理员或改用安全问题恢复。", "warning")
+        return redirect(url_for("auth.recover_methods"))
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    expires = (datetime.now(timezone.utc) + timedelta(
+        minutes=current_app.config["RECOVER_TOKEN_MINUTES"])).strftime("%Y-%m-%d %H:%M:%S")
+    db.execute("INSERT INTO recovery_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)",
+               (user["id"], token_hash, expires))
+    link = f"{current_app.config['SITE_URL']}/recover/reset?token={token}"
+    minutes = current_app.config["RECOVER_TOKEN_MINUTES"]
+    html = (f"<p>你好，</p>"
+            f"<p>我们收到了为账户 <b>{user['username']}</b> 重置密码的请求。</p>"
+            f"<p>点击下面的链接设置新密码（<b>{minutes} 分钟内有效，且只能使用一次</b>）：</p>"
+            f'<p><a href="{link}">{link}</a></p>'
+            f"<p>如果这不是你本人的操作，请忽略此邮件，账户不会受影响。</p>")
+    if not send_mail(user["email"], "1914.fun 密码恢复", html):
+        flash("恢复邮件发送失败，请稍后再试，或改用安全问题恢复。", "danger")
+        return redirect(url_for("auth.recover_methods"))
+    return redirect(url_for("auth.recover_email_sent"))
+
+
+@bp.route("/recover/email-sent")
+def recover_email_sent():
+    if session.get("recover_uid") is None:
+        return redirect(url_for("auth.recover"))
+    return render_template("auth/mail_sent.html",
+                           minutes=current_app.config["RECOVER_TOKEN_MINUTES"])
+
+
+@bp.route("/recover/question", methods=["GET", "POST"])
+def recover_question():
+    user = _recover_user()
+    if user is None or not user["security_question"]:
+        return redirect(url_for("auth.recover"))
+    username = user["username"]
+    ip = request.remote_addr or "?"
+    if is_throttled("recover_q", username, RECOVER_Q_MAX, 15) or        is_throttled("recover_q_ip", ip, RECOVER_Q_IP_MAX, 15):
+        session.pop("recover_uid", None)
+        flash("安全问题尝试次数过多，该账户的恢复功能已被暂时锁定，请稍后再试。", "danger")
+        return redirect(url_for("auth.login"))
+    error = None
+    if request.method == "POST":
+        check_csrf()
+        answer = request.form.get("answer", "")
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+        if not check_answer(answer, user["security_answer_hash"]):
+            register_login_failure("recover_q", username)
+            register_login_failure("recover_q", ip)
+            error = "安全问题答案不正确。"
+        else:
+            err = check_password_strength(password)
+            if err:
+                error = err
+            elif password != confirm:
+                error = "两次输入的密码不一致"
+        if not error:
+            db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                       (hash_password(password), user["id"]))
+            db.execute("DELETE FROM recovery_tokens WHERE user_id = ? AND used_at IS NULL",
+                       (user["id"],))
+            revoke_all_sessions(user["id"])
+            clear_login_failures("recover_q", username)
+            clear_login_failures("recover_q", ip)
+            session.clear()
+            flash("密码已重置，请使用新密码登录。", "success")
+            return redirect(url_for("auth.login"))
+    return render_template("auth/recover_question.html",
+                           question=user["security_question"], error=error)
+
+
+@bp.route("/recover/reset", methods=["GET", "POST"])
+def recover_reset():
+    token = request.values.get("token", "")
+    token_hash = hashlib.sha256(token.encode()).hexdigest() if token else ""
+    row = None
+    if token_hash:
+        row = db.query(
+            "SELECT * FROM recovery_tokens WHERE token_hash = ? AND used_at IS NULL "
+            "AND expires_at > datetime('now')", (token_hash,), one=True)
+    if row is None:
+        return render_template("auth/recover_reset.html", token=None, invalid=True)
+    error = None
+    if request.method == "POST":
+        auth_check = check_csrf()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+        err = check_password_strength(password)
+        if err:
+            error = err
+        elif password != confirm:
+            error = "两次输入的密码不一致"
+        if not error:
+            db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                       (hash_password(password), row["user_id"]))
+            db.execute("UPDATE recovery_tokens SET used_at = datetime('now') WHERE id = ?",
+                       (row["id"],))
+            db.execute("DELETE FROM recovery_tokens WHERE user_id = ? AND used_at IS NULL",
+                       (row["user_id"],))
+            revoke_all_sessions(row["user_id"])
+            flash("密码已重置，请使用新密码登录。", "success")
+            return redirect(url_for("auth.login"))
+    return render_template("auth/recover_reset.html", token=token, error=error)

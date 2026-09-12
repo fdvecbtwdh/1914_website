@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}选择恢复方式 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:480px">
+  <div class="panel form-panel" style="margin:40px auto">
+    <h2>选择恢复方式</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0">账户：{{ recover_user['username'] }}</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      {% if recover_user['email'] %}
+      <form method="post" action="/recover/email">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary" type="submit" style="width:100%">
+          📧 通过邮箱恢复{{ '（' + email_masked + '）' if email_masked }}</button>
+      </form>
+      {% endif %}
+      {% if recover_user['security_question'] %}
+      <a class="btn" style="width:100%;text-align:center" href="/recover/question">❓ 通过安全问题恢复</a>
+      {% endif %}
+    </div>
+    {% if recover_user['email'] and not mail_ready %}
+    <p class="md-hint" style="color:var(--brass)">注意：站点的邮件发送暂未配置，邮箱恢复暂时不可用，请使用安全问题恢复。</p>
+    {% endif %}
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:.9rem">
+    想起密码了？<a href="/login">返回登录</a>
+  </p>
+</div>
+{% endblock %}

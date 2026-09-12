@@ -72,6 +72,17 @@ class Config:
 
     # --- 空数据库自动播种（官方卡牌 + 标签 + 初始管理员 admin/随机密码） ---
     AUTO_SEED = _bool("AUTO_SEED", "1")
+
+    # --- 邮件（账户恢复；未配置 MAIL_HOST 时邮箱恢复自动停用） ---
+    MAIL_HOST = os.environ.get("MAIL_HOST", "")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USER = os.environ.get("MAIL_USER", "")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_FROM = os.environ.get("MAIL_FROM", "") or os.environ.get("MAIL_USER", "")
+    MAIL_USE_TLS = _bool("MAIL_USE_TLS", "1")
+
+    # --- 账户恢复 ---
+    RECOVER_TOKEN_MINUTES = int(os.environ.get("RECOVER_TOKEN_MINUTES", "30"))
     # 删除数据库重启时的恢复模板（manage.py save-default 生成；留空 = DB 同目录 default.db）
     DB_TEMPLATE_PATH = os.environ.get("DB_TEMPLATE_PATH", "")
 

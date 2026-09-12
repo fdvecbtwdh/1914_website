@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}恢复邮件已发送 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:520px">
+  <div class="panel form-panel" style="margin:40px auto;text-align:center">
+    <h2>📧 请查收恢复邮件</h2>
+    <p>如果该账户已设置邮箱，恢复邮件已发送。</p>
+    <p style="color:var(--muted);font-size:.9rem">
+      链接 {{ minutes }} 分钟内有效，且只能使用一次。<br>
+      没有收到？请检查垃圾邮件文件夹，或稍后重试。</p>
+    <a class="btn btn-primary" href="/login">返回登录</a>
+  </div>
+</div>
+{% endblock %}

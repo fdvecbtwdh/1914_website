@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}恢复账户 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:480px">
+  <div class="panel form-panel" style="margin:40px auto">
+    <h2>🔑 恢复账户</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0">
+      输入你的用户名或注册邮箱，系统会显示你可用的恢复方式。</p>
+    <form method="post" action="/recover">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:14px">
+        <label>用户名或邮箱 *</label>
+        <input type="text" name="ident" required autofocus autocomplete="username">
+      </div>
+      <button class="btn btn-brass" type="submit" style="width:100%">下一步</button>
+    </form>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:16px;text-align:center">
+      想起密码了？<a href="/login">返回登录</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

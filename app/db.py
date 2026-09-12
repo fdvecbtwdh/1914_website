@@ -97,3 +97,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "component" not in icols:
         # Issue 所属：game=游戏本体 / web=网页（同步分流到对应仓库）
         conn.execute("ALTER TABLE issues ADD COLUMN component TEXT NOT NULL DEFAULT 'game'")
+    ucols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
+    if "security_question" not in ucols:
+        conn.execute("ALTER TABLE users ADD COLUMN security_question TEXT")
+    if "security_answer_hash" not in ucols:
+        conn.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT")

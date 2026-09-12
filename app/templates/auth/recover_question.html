@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}安全问题恢复 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:480px">
+  <div class="panel form-panel" style="margin:40px auto">
+    <h2>❓ 安全问题恢复</h2>
+    <div style="margin-bottom:14px">
+      <label>安全问题</label>
+      <div style="padding:8px 12px;background:var(--bg-2);border:1px solid var(--line);border-radius:4px">
+        {{ question }}</div>
+    </div>
+    {% if error %}<div class="flash flash-danger">{{ error }}</div>{% endif %}
+    <form method="post" action="/recover/question">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:14px">
+        <label>你的答案 *</label>
+        <input type="text" name="answer" required autofocus autocomplete="off">
+      </div>
+      <div style="margin-bottom:14px">
+        <label>设置新密码 *</label>
+        <input type="password" name="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div style="margin-bottom:18px">
+        <label>确认新密码 *</label>
+        <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
+      </div>
+      <button class="btn btn-brass" type="submit" style="width:100%">重置密码</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

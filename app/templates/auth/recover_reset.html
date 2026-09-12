@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}设置新密码 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:480px">
+  <div class="panel form-panel" style="margin:40px auto">
+    {% if invalid or token is none %}
+    <h2>链接无效</h2>
+    <p style="color:var(--muted)">恢复链接无效、已过期或已被使用。</p>
+    <p><a href="/recover">重新发起账户恢复</a> · <a href="/login">返回登录</a></p>
+    {% else %}
+    <h2>设置新密码</h2>
+    {% if error %}<div class="flash flash-danger">{{ error }}</div>{% endif %}
+    <form method="post" action="/recover/reset">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <div style="margin-bottom:14px">
+        <label>新密码 *</label>
+        <input type="password" name="password" required minlength="8" autofocus autocomplete="new-password">
+      </div>
+      <div style="margin-bottom:18px">
+        <label>确认新密码 *</label>
+        <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
+      </div>
+      <button class="btn btn-brass" type="submit" style="width:100%">重置密码</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

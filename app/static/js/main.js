@@ -185,6 +185,15 @@
     });
   });
 
+  /* ---------- 表单 ? 帮助：触屏点击切换 ---------- */
+  document.addEventListener("click", function (e) {
+    var help = e.target.closest(".q-help");
+    document.querySelectorAll(".q-help.show").forEach(function (el) {
+      if (el !== help) el.classList.remove("show");
+    });
+    if (help) help.classList.toggle("show");
+  });
+
   /* ---------- 卡牌性质徽章：点击显示详情 ---------- */
   try {
     var tagJson = document.getElementById("card-tag-descs");

@@ -114,6 +114,8 @@ def change_password():
         db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
                    (auth.hash_password(new), user["id"]))
         auth.revoke_all_sessions(user["id"])
+        db.execute("DELETE FROM recovery_tokens WHERE user_id = ? AND used_at IS NULL",
+                   (user["id"],))
         auth.create_session(user["id"])
         auth.audit("password_change", "user", user["id"])
         flash("密码已修改，其他设备已强制退出", "success")

@@ -1203,5 +1203,233 @@ class TestIssueComponentAndTags(Base):
             self.assertEqual(r.status_code, 200, path)
 
 
+class TestAccountRecovery(Base):
+    """账户恢复全流程：邮箱（SMTP 收件池实测）、安全问题、限速、一次性令牌。"""
+
+    def setUp(self):
+        super().setUp()
+        import socket
+        import threading
+        self.mails = []
+        self._stop = threading.Event()
+        self._srv = socket.socket()
+        self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._srv.bind(("127.0.0.1", 0))
+        self._port = self._srv.getsockname()[1]
+        self._srv.listen(1)
+        threading.Thread(target=self._smtp_sink, daemon=True).start()
+        self.app.config["MAIL_HOST"] = "127.0.0.1"
+        self.app.config["MAIL_PORT"] = self._port
+        self.app.config["MAIL_USE_TLS"] = False
+        self.app.config["MAIL_FROM"] = "noreply@1914.fun"
+
+    def tearDown(self):
+        self._stop.set()
+        try:
+            self._srv.close()
+        except OSError:
+            pass
+        super().tearDown()
+
+    def _smtp_sink(self):
+        self._srv.settimeout(8)
+        while not self._stop.is_set():
+            try:
+                conn, _ = self._srv.accept()
+            except OSError:
+                return
+            try:
+                conn.sendall(b"220 test ESMTP\r\n")
+                f = conn.makefile("rb")
+                data_mode, body = False, []
+                while True:
+                    line = f.readline()
+                    if not line:
+                        break
+                    if data_mode:
+                        if line.strip() == b".":
+                            data_mode = False
+                            self.mails.append("\r\n".join(body))
+                            body = []
+                            conn.sendall(b"250 OK\r\n")
+                        else:
+                            body.append(line.decode("utf-8", "replace").rstrip("\r\n"))
+                        continue
+                    cmd = line.strip().upper()
+                    if cmd.startswith(b"DATA"):
+                        conn.sendall(b"354 go\r\n")
+                        data_mode = True
+                    elif cmd.startswith(b"QUIT"):
+                        conn.sendall(b"221 bye\r\n")
+                        break
+                    else:
+                        conn.sendall(b"250 OK\r\n")
+            except OSError:
+                pass
+            finally:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+
+    def _register(self, name, email="", q="", a=""):
+        self.logout()
+        self.set_csrf()
+        r = self.client.post("/register", data={
+            "csrf_token": "t", "username": name, "password": "Passw0rd123",
+            "confirm": "Passw0rd123", "email": email,
+            "security_question": q, "security_answer": a}, follow_redirects=True)
+        return r
+
+    def _recover_entry(self, ident):
+        self.set_csrf()
+        return self.client.post("/recover", data={
+            "csrf_token": "t", "ident": ident}, follow_redirects=True)
+
+    def test_register_variants(self):
+        """只用户名+密码 / 邮箱 / 安全问题 / 全部，四种注册形态。"""
+        self._register("plain")
+        row = self.sql("SELECT email, security_question, security_answer_hash FROM users WHERE username='plain'")[0]
+        self.assertEqual((row["email"], row["security_question"], row["security_answer_hash"]),
+                         (None, None, None))
+        self._register("mailer", email="m@1914.fun")
+        self.assertEqual(self.sql("SELECT email FROM users WHERE username='mailer'")[0]["email"],
+                         "m@1914.fun")
+        self._register("secq", q="我的小学", a="sunshine")
+        row = self.sql("SELECT security_question, security_answer_hash FROM users WHERE username='secq'")[0]
+        self.assertEqual(row["security_question"], "我的小学")
+        self.assertNotIn("sunshine", row["security_answer_hash"])
+        self.assertTrue(row["security_answer_hash"])
+        self._register("both", email="b@1914.fun", q="我的小学", a="sunshine")
+        row = self.sql("SELECT email, security_question FROM users WHERE username='both'")[0]
+        self.assertEqual((row["email"], row["security_question"]), ("b@1914.fun", "我的小学"))
+        # 只填问题不填答案被拒
+        self.logout()
+        self.set_csrf()
+        r = self.client.post("/register", data={
+            "csrf_token": "t", "username": "half", "password": "Passw0rd123",
+            "confirm": "Passw0rd123", "security_question": "问题"}, follow_redirects=True)
+        self.assertIn("同时填写", r.get_data(as_text=True))
+
+    def test_no_recovery_methods_message(self):
+        self._register("norecov")
+        self.logout()
+        self.set_csrf()
+        r = self._recover_entry("norecov")
+        self.assertIn("此账户没有设置可用的恢复方式，因此无法通过此功能恢复密码。",
+                      r.get_data(as_text=True))
+
+    def test_email_recovery_flow(self):
+        """邮箱恢复：请求 → 收件 → 令牌重置 → 一次性。"""
+        self._register("mailer", email="m@1914.fun")
+        self.logout()
+        r = self._recover_entry("mailer")
+        self.assertIn("选择恢复方式", r.get_data(as_text=True))
+        self.assertIn("***", r.get_data(as_text=True))   # 邮箱打码显示
+        self.set_csrf()
+        r = self.client.post("/recover/email", follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(len(self.mails), 1)
+        import email as email_mod
+        import re
+        msg = email_mod.message_from_string(self.mails[0])
+        raw = None
+        for part in msg.walk():
+            if part.get_content_type() == "text/html":
+                raw = part.get_payload(decode=True)
+                break
+        body = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else ""
+        m = re.search(r"/recover/reset\?token=([A-Za-z0-9_\-]+)", body)
+        self.assertIsNotNone(m)
+        token = m.group(1)
+        # 令牌哈希入库，原文不落库
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM recovery_tokens WHERE token_hash=?", (token,))[0]["c"], 0)
+        # 打开重置页并设置新密码
+        r = self.client.get("/recover/reset?token=" + token)
+        self.assertIn("设置新密码", r.get_data(as_text=True))
+        self.set_csrf()
+        r = self.client.post("/recover/reset", data={
+            "csrf_token": "t", "token": token,
+            "password": "NewPass123", "confirm": "NewPass123"}, follow_redirects=True)
+        self.assertIn("密码已重置", r.get_data(as_text=True))
+        # 旧密码失效、新密码可登录
+        self.logout()
+        r = self.login("mailer", "Passw0rd123")
+        self.assertIn("用户名或密码错误", r.get_data(as_text=True))
+        r = self.login("mailer", "NewPass123")
+        self.assertIn("欢迎回来", r.get_data(as_text=True))
+        # 令牌一次性：再次使用无效
+        self.logout()
+        r = self.client.get("/recover/reset?token=" + token)
+        self.assertIn("无效", r.get_data(as_text=True))
+
+    def test_expired_token_rejected(self):
+        self._register("exp", email="e@1914.fun")
+        self.logout()
+        self.set_csrf()
+        self._recover_entry("exp")
+        self.client.post("/recover/email")
+        self.sql("UPDATE recovery_tokens SET expires_at='2000-01-01 00:00:00'")
+        html = self.client.get("/recover/reset?token=whatever").get_data(as_text=True)
+        self.assertIn("无效", html)
+
+    def test_question_recovery_flow(self):
+        self._register("secq", q="我的小学", a="sunshine")
+        self.logout()
+        self.login("secq", "Passw0rd123")
+        self.logout()
+        r = self._recover_entry("secq")
+        self.assertIn("安全问题恢复", r.get_data(as_text=True))
+        # 错误答案 ×5 → 触发限锁
+        for i in range(5):
+            self.set_csrf()
+            r = self.client.post("/recover/question", data={
+                "csrf_token": "t", "answer": "wrong%d" % i,
+                "password": "NewPass123", "confirm": "NewPass123"})
+            self.assertIn("答案不正确", r.get_data(as_text=True))
+        # 第 6 次被限锁，即使答案正确也无法恢复
+        self.set_csrf()
+        r = self.client.post("/recover/question", data={
+            "csrf_token": "t", "answer": "sunshine",
+            "password": "Hacked123", "confirm": "Hacked123"}, follow_redirects=True)
+        self.assertIn("暂时锁定", r.get_data(as_text=True))
+
+    def test_correct_answer_resets(self):
+        self._register("goodq", q="我的小学", a="sunshine")
+        self.logout()
+        self.login("goodq", "Passw0rd123")
+        self.logout()
+        r = self._recover_entry("goodq")
+        self.set_csrf()
+        r = self.client.post("/recover/question", data={
+            "csrf_token": "t", "answer": "SUNSHINE ",   # 归一化：大小写/空格不敏感
+            "password": "NewPass456", "confirm": "NewPass456"}, follow_redirects=True)
+        self.assertIn("密码已重置", r.get_data(as_text=True))
+        self.login("goodq", "NewPass456")
+        html = self.client.get("/index").get_data(as_text=True)
+        self.assertIn('href="/u/goodq"', html)   # 登录态：顶栏显示用户主页链接
+
+    def test_email_rate_limit(self):
+        self._register("ratelimit", email="r@1914.fun")
+        self.logout()
+        r = self._recover_entry("ratelimit")
+        self.set_csrf()
+        results = []
+        for _ in range(4):
+            results.append(self.client.post("/recover/email", follow_redirects=True)
+                           .get_data(as_text=True))
+        self.assertTrue(any("过于频繁" in h for h in results[2:]))
+
+    def test_q_help_markup(self):
+        """注册页包含 ? 帮助组件与悬停/点击说明。"""
+        html = self.client.get("/register").get_data(as_text=True)
+        self.assertIn("q-help", html)
+        self.assertIn("安全问题用于在忘记密码时恢复账户", html)
+        self.assertIn("（可选，用于账户恢复）", html)
+        self.assertIn('name="security_question"', html)
+        self.assertIn('name="security_answer"', html)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

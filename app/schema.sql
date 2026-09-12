@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
     role          TEXT    NOT NULL DEFAULT 'user',   -- user / moderator / admin
     bio           TEXT    NOT NULL DEFAULT '',
     is_banned     INTEGER NOT NULL DEFAULT 0,
+    security_question      TEXT,
+    security_answer_hash   TEXT,
     created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
     last_login_at TEXT
 );
@@ -167,6 +169,17 @@ CREATE TABLE IF NOT EXISTS rate_limits (
     fail_count    INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (key)
 );
+
+-- 账户恢复令牌（邮箱找回密码）：只存令牌哈希，不存原文
+CREATE TABLE IF NOT EXISTS recovery_tokens (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  TEXT    NOT NULL UNIQUE,
+    expires_at  TEXT    NOT NULL,
+    used_at     TEXT,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_recovery_tokens_user ON recovery_tokens(user_id);
 
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
