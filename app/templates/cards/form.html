@@ -8,7 +8,7 @@
     <span class="sub">{% if current_user and current_user['role'] == 'admin' %}可选择官方卡牌或玩家自制{% else %}投稿玩家自制卡牌 · 官方卡牌仅由管理员发布{% endif %}</span>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 300px;gap:26px;align-items:start" id="card-form-layout">
+  <div class="card-form-layout" id="card-form-layout">
     <form class="panel form-panel" id="card-form" method="post" enctype="multipart/form-data"
           action="{{ '/card/' + card.id|string + '/edit' if editing else '/cards/new' }}"
           style="max-width:none;margin-bottom:0">
@@ -160,7 +160,7 @@
       </div>
     </form>
 
-    <div style="position:sticky;top:76px">
+    <div class="card-form-preview">
       <p style="color:var(--muted);margin:0 0 10px">实时预览</p>
       <div id="gcard-preview" style="display:flex;justify-content:center">
         <div class="gcard">

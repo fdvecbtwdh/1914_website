@@ -479,6 +479,14 @@ table.data tr.compact-row td { padding: 4px 10px; font-size: .9rem; }
 @media (max-width: 900px) { .detail-layout { grid-template-columns: 1fr; } }
 .detail-side { position: sticky; top: 76px; }
 @media (max-width: 900px) { .detail-side { position: static; } }
+/* 卡牌投稿/编辑：表单 + 实时预览双栏，窄屏叠为单列 */
+.card-form-layout { display: grid; grid-template-columns: 1fr 300px; gap: 26px; align-items: start; }
+.card-form-layout > * { min-width: 0; } /* select 最长选项文本会抬高 1fr 的最小宽度，导致窄屏溢出 */
+.card-form-preview { position: sticky; top: 76px; }
+@media (max-width: 900px) {
+  .card-form-layout { grid-template-columns: 1fr; }
+  .card-form-preview { position: static; }
+}
 .meta-table { width: 100%; font-size: .9rem; }
 .meta-table td { padding: 4px 0; border: none; }
 .meta-table td:first-child { color: var(--muted); width: 88px; }
