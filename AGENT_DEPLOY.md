@@ -89,6 +89,9 @@ cloudflared service install <TOKEN>
   to console / `data\service.log` as `[1914] ... admin / <password>`)
 - trigger: users table empty at startup (`AUTO_SEED=1` in .env, default on)
 - existing non-empty DBs are never touched by auto-seed
+- default template: `python manage.py save-default` writes `data\default.db`;
+  if the DB file is missing at startup and this template exists → restored from it verbatim
+  (keeps accounts, card tags, all data). `AUTO_SEED=0` disables seeding only
 
 ## tests
 
