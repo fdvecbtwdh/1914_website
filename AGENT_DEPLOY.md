@@ -84,7 +84,7 @@ cloudflared service install <TOKEN>
 
 ## db reset / recovery
 
-- delete `data914.db` (or whole `data\`) then start → app auto-rebuilds:
+- delete `data\1914.db` (or whole `data\`) then start → app auto-rebuilds:
   schema + 16 official cards + labels + fresh admin (random password printed
   to console / `data\service.log` as `[1914] ... admin / <password>`)
 - trigger: users table empty at startup (`AUTO_SEED=1` in .env, default on)
