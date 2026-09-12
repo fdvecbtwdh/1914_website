@@ -3,7 +3,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
 from . import db, auth, interactions
-from .gameconstants import ISSUE_STATUSES, ISSUE_PRIORITIES
+from .gameconstants import (ISSUE_STATUSES, ISSUE_PRIORITIES, ISSUE_COMPONENTS,
+                            DEFAULT_ISSUE_COMPONENT, ISSUE_TAGS)
 
 bp = Blueprint("issues", __name__, url_prefix="")
 
@@ -36,6 +37,7 @@ def issue_list():
     status = request.args.get("status", "")
     priority = request.args.get("priority", "")
     label = request.args.get("label", "")
+    component = request.args.get("component", "")
     author = request.args.get("author", "").strip()
     sort = request.args.get("sort", "newest")
     page = max(1, min(request.args.get("page", 1, type=int), 500))
@@ -58,6 +60,9 @@ def issue_list():
                      "JOIN labels l ON l.id = cl.label_id "
                      "WHERE cl.content_type = 'issue' AND l.name = ?)")
         args.append(label)
+    if component in ISSUE_COMPONENTS:
+        where.append("i.component = ?")
+        args.append(component)
     if author:
         where.append("u.username = ?")
         args.append(author)
@@ -93,8 +98,10 @@ def issue_list():
                              one=True)["n"]
     return render_template("issues/list.html", issues=issues, total=total, page=page,
                            pages=pages, q=q, status=status, priority=priority, label=label,
+                           component=component,
                            author=author, sort=sort, counts=counts,
-                           statuses=ISSUE_STATUSES, priorities=ISSUE_PRIORITIES)
+                           statuses=ISSUE_STATUSES, priorities=ISSUE_PRIORITIES,
+                           issue_tags=ISSUE_TAGS)
 
 
 # ---------- 创建 ----------
@@ -111,23 +118,30 @@ def issue_new():
         elif len(body) > 20000:
             flash("内容过长", "danger")
         else:
+            component = (request.form.get("component") or ""
+                         if request.form.get("component") in ISSUE_COMPONENTS
+                         else DEFAULT_ISSUE_COMPONENT)
             issue_id = db.execute(
-                """INSERT INTO issues (title, body, game_version, sys_info, author_id)
-                   VALUES (?,?,?,?,?)""",
+                """INSERT INTO issues (title, body, game_version, sys_info, author_id, component)
+                   VALUES (?,?,?,?,?,?)""",
                 (title, body,
                  (request.form.get("game_version") or "").strip()[:40],
                  (request.form.get("sys_info") or "").strip()[:500],
-                 auth.current_user()["id"]))
+                 auth.current_user()["id"], component))
             from .cards import _set_labels
-            _set_labels("issue", issue_id, request.form.get("tags", ""))
+            _set_labels("issue", issue_id, ",".join(
+                t for t in request.form.getlist("issue_tags") if t in ISSUE_TAGS))
             auth.audit("issue_create", "issue", issue_id, title)
-            # 加入 GitHub 同步队列（未配置 Token 时 worker 会安全跳过）
+            # 加入 GitHub 同步队列（按所属分流仓库；未配置 Token 时 worker 会安全跳过）
             from .github_sync import enqueue
             enqueue(issue_id, "create")
             flash("Issue 已提交，感谢反馈！", "success")
             return redirect(url_for("issues.issue_detail", issue_id=issue_id))
     return render_template("issues/form.html", issue=None, editing=False,
-                           game_version_default=__import__("flask").current_app.config["GAME_VERSION"])
+                           game_version_default=__import__("flask").current_app.config["GAME_VERSION"],
+                           issue_components=ISSUE_COMPONENTS,
+                           default_component=DEFAULT_ISSUE_COMPONENT,
+                           issue_tags=ISSUE_TAGS)
 
 
 # ---------- 详情 ----------
@@ -171,18 +185,26 @@ def issue_edit(issue_id: int):
         elif len(body) > 20000:
             flash("内容过长", "danger")
         else:
+            component = request.form.get("component")
+            component = component if component in ISSUE_COMPONENTS else issue["component"]
             db.execute(
-                "UPDATE issues SET title = ?, body = ?, updated_at = datetime('now') WHERE id = ?",
-                (title, body, issue_id))
+                """UPDATE issues SET title = ?, body = ?, component = ?,
+                   updated_at = datetime('now') WHERE id = ?""",
+                (title, body, component, issue_id))
             from .cards import _set_labels
-            _set_labels("issue", issue_id, request.form.get("tags", ""))
+            _set_labels("issue", issue_id, ",".join(
+                t for t in request.form.getlist("issue_tags") if t in ISSUE_TAGS))
             from .github_sync import enqueue
             enqueue(issue_id, "update")
             auth.audit("issue_edit", "issue", issue_id, title)
             flash("Issue 已更新", "success")
             return redirect(url_for("issues.issue_detail", issue_id=issue_id))
     return render_template("issues/form.html", issue=issue, editing=True,
-                           game_version_default=issue["game_version"])
+                           game_version_default=issue["game_version"],
+                           issue_components=ISSUE_COMPONENTS,
+                           default_component=issue["component"],
+                           issue_tags=ISSUE_TAGS,
+                           current_tags=[l["name"] for l in _issue_labels(issue_id)])
 
 
 # ---------- 状态 / 优先级 / 标签（版主以上） ----------

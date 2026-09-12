@@ -209,6 +209,8 @@ PORT=8000
 **5.4 GitHub 同步（可选）**：想要网站 Issue 推送到 GitHub，在 `.env` 里填
 `GITHUB_TOKEN=ghp_xxx`（GitHub → Settings → Developer settings → PAT classic，勾 `repo` 权限）。
 不填则该功能静默关闭，站点一切正常。
+Issue 按所属分流：**游戏本体 Issue → `GITHUB_REPO`（默认 1914）**，
+**网页 Issue → `GITHUB_WEB_REPO`（默认 1914_website）**，两个仓库共用同一 Token。
 
 ---
 

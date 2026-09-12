@@ -29,6 +29,17 @@
       <option value="">全部优先级</option>
       {% for k, v in priorities.items() %}<option value="{{ k }}" {% if priority == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
     </select>
+    <select name="component">
+      <option value="">全部所属</option>
+      <option value="game" {% if component == 'game' %}selected{% endif %}>🎮 游戏本体</option>
+      <option value="web" {% if component == 'web' %}selected{% endif %}>🌐 网页</option>
+    </select>
+    <select name="label">
+      <option value="">全部标签</option>
+      {% for name in issue_tags %}
+      <option value="{{ name }}" {% if label == name %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
     {% if label %}<input type="hidden" name="label" value="{{ label }}">{% endif %}
     <button class="btn btn-sm" type="submit">筛选</button>
     <span style="flex:1"></span>
@@ -53,6 +64,7 @@
         <a class="issue-title" href="/issue/{{ issue.id }}">{{ issue.title }}</a>
         {% if issue.priority != 'none' %}<span class="priority-chip" style="color:{{ {('none'):'#777','low':'#3a7bbf','medium':'#c9a227','high':'#d35400','critical':'#b03030'}.get(issue.priority) }}">{{ priorities[issue.priority] }}</span>{% endif %}
         <div class="issue-meta">#{{ issue.id }} · {{ issue.created_at|ago }} 由 <a href="/u/{{ issue.author_name or '?' }}">{{ issue.author_name or '已注销' }}</a> 提交
+          · <span class="badge {% if issue.component == 'web' %}badge-brass{% else %}badge-olive{% endif %}">{{ '🌐 网页' if issue.component == 'web' else '🎮 游戏本体' }}</span>
           · ▲ {{ issue.vote_count }} · 💬 {{ issue.comment_count }}
           {% if issue.github_url %} · <a href="{{ issue.github_url }}" target="_blank" rel="noopener">GitHub #{{ issue.github_number }}↗</a>{% endif %}
         </div>

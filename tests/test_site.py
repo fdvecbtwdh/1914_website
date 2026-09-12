@@ -1127,5 +1127,81 @@ class TestAutoSeed(unittest.TestCase):
         self.assertEqual((cards, users), (16, 1))
 
 
+class TestIssueComponentAndTags(Base):
+    """Issue 所属（网页/游戏本体）、预设标签、同步分流。"""
+
+    def test_component_and_preset_tags(self):
+        self.logout()
+        self.register("ireporter", "Passw0rd123")
+        h = self.csrf_hdr()
+        # 网页 Issue + 预设标签
+        r = self.client.post("/issues/new", headers=h, data={
+            "title": "网页按钮错位的问题标题",
+            "body": "描述",
+            "component": "web",
+            "issue_tags": ["UI 显示", "功能建议"]}, follow_redirects=True)
+        self.assertIn("感谢反馈", r.get_data(as_text=True))
+        wid = self.sql("SELECT id FROM issues WHERE title='网页按钮错位的问题标题'")[0]["id"]
+        row = self.sql("SELECT component FROM issues WHERE id=?", (wid,))[0]
+        self.assertEqual(row["component"], "web")
+        web_labels = sorted(l["name"] for l in self.sql(
+            "SELECT l.name FROM content_labels cl JOIN labels l ON l.id=cl.label_id "
+            "WHERE cl.content_type='issue' AND cl.content_id=?", (wid,)))
+        self.assertEqual(web_labels, ["UI 显示", "功能建议"])
+        # 游戏 Issue（默认所属）
+        r = self.client.post("/issues/new", headers=h, data={
+            "title": "游戏崩溃的问题标题", "body": "x",
+            "issue_tags": ["崩溃"]}, follow_redirects=True)
+        gid = self.sql("SELECT id FROM issues WHERE title='游戏崩溃的问题标题'")[0]["id"]
+        self.assertEqual(self.sql("SELECT component FROM issues WHERE id=?", (gid,))[0]["component"],
+                         "game")
+        # 非法预设标签被忽略
+        self.client.post("/issues/new", headers=h, data={
+            "title": "带非法标签的标题", "body": "x",
+            "issue_tags": ["不存在的标签"]}, follow_redirects=True)
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM issues WHERE title='带非法标签的标题'")[0]["c"], 1)
+
+        # 列表：所属筛选
+        html = self.client.get("/issues?component=web").get_data(as_text=True)
+        self.assertIn("网页按钮错位的问题标题", html)
+        self.assertNotIn("游戏崩溃的问题标题", html)
+        # 标签筛选
+        html = self.client.get("/issues?label=崩溃").get_data(as_text=True)
+        self.assertIn("游戏崩溃的问题标题", html)
+        # 详情页显示所属与标签
+        html = self.client.get(f"/issue/{wid}").get_data(as_text=True)
+        self.assertIn("🌐 网页", html)
+        self.assertIn("UI 显示", html)
+
+    def test_sync_repo_routing(self):
+        """同步队列按所属分流：web→网页仓库，game→游戏仓库。"""
+        self.logout()
+        self.register("syncuser", "Passw0rd123")
+        self.app.config["GITHUB_TOKEN"] = "test-token"
+        self.app.config["GITHUB_WEB_REPO"] = "fdvecbtwdh/1914_website"
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "游戏侧同步标题", "body": "x"}, follow_redirects=True)
+        self.client.post("/issues/new", headers=h, data={
+            "title": "网页侧同步标题", "body": "x", "component": "web"}, follow_redirects=True)
+        rows = self.sql("SELECT issue_id, repo FROM sync_queue ORDER BY id")
+        repos = {r["issue_id"]: r["repo"] for r in rows}
+        gid = self.sql("SELECT id FROM issues WHERE title='游戏侧同步标题'")[0]["id"]
+        wid = self.sql("SELECT id FROM issues WHERE title='网页侧同步标题'")[0]["id"]
+        self.assertEqual(repos[gid], "fdvecbtwdh/1914")
+        self.assertEqual(repos[wid], "fdvecbtwdh/1914_website")
+
+    def test_component_filter_admin(self):
+        self.logout()
+        self.register("fuser", "Passw0rd123")
+        self.logout()
+        admin_u, admin_p = self.make_admin()
+        self.login(admin_u, admin_p)
+        for path in ("/admin/issues?status=all&component=web", "/admin/users?role=user"):
+            r = self.client.get(path)
+            self.assertEqual(r.status_code, 200, path)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

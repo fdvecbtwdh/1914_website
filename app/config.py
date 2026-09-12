@@ -53,6 +53,8 @@ class Config:
     GAME_VERSION_LABEL = os.environ.get("GAME_VERSION_LABEL", "阶段3 · 15卡+迷雾")
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "fdvecbtwdh/1914")
     GITHUB_REPO_URL = os.environ.get("GITHUB_REPO_URL", "https://github.com/fdvecbtwdh/1914")
+    # 网页 Issue 同步目标仓库（与游戏仓库共用 GITHUB_TOKEN）
+    GITHUB_WEB_REPO = os.environ.get("GITHUB_WEB_REPO", "fdvecbtwdh/1914_website")
     # 网站自身的源码仓库（页脚展示）
     SITE_REPO_URL = os.environ.get("SITE_REPO_URL", "https://github.com/fdvecbtwdh/1914_website")
 

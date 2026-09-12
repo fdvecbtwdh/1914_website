@@ -40,6 +40,7 @@ Copy `.env.example` → `.env`. Required mutations:
 - `GAME_PROJECT_PATH=` (empty; seeds fallback)
 - `COOKIE_SECURE=1` (must be 1 behind HTTPS; set 0 only for plain-http local debug)
 - ensure lines exist: `HOST=127.0.0.1`, `PORT=8000`
+- optional: `GITHUB_WEB_REPO` = repo for web-issue sync (default `fdvecbtwdh/1914_website`)
 - optional: `GAME_SERVER_TOKEN` = random string — enables the game-server panel on `/status`
   (game server pushes heartbeats to /api/game-server/heartbeat; empty = panel shows 不可用)
 

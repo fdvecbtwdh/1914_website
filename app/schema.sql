@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS sync_queue (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     issue_id    INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
     action      TEXT NOT NULL,     -- create / update / close / reopen
+    repo        TEXT,              -- 目标仓库 full-name（如 fdvecbtwdh/1914）；NULL=默认游戏仓库
     payload     TEXT NOT NULL DEFAULT '{}',
     status      TEXT NOT NULL DEFAULT 'pending',  -- pending / done / failed / skipped
     attempts    INTEGER NOT NULL DEFAULT 0,

@@ -21,13 +21,21 @@ POLL_INTERVAL = 15  # 秒
 
 
 def enqueue(issue_id: int, action: str) -> None:
-    """把同步动作放入队列；GitHub 未配置时直接标记跳过，不入队等死。"""
+    """把同步动作放入队列；GitHub 未配置时直接跳过，不入队。
+    目标仓库按 Issue 所属分流：web → GITHUB_WEB_REPO，game → GITHUB_REPO。
+    """
     try:
         from flask import current_app
         if not current_app.config.get("GITHUB_TOKEN"):
             return  # 未配置 → 完全静默跳过，零依赖
+        comp = db.query("SELECT component FROM issues WHERE id = ?",
+                        (issue_id,), one=True)
+        repo = (current_app.config["GITHUB_WEB_REPO"]
+                if comp and comp["component"] == "web"
+                else current_app.config["GITHUB_REPO"])
         db.execute(
-            "INSERT INTO sync_queue (issue_id, action) VALUES (?,?)", (issue_id, action))
+            "INSERT INTO sync_queue (issue_id, action, repo) VALUES (?,?,?)",
+            (issue_id, action, repo))
     except Exception:  # 同步永远不能影响主流程
         log.exception("enqueue failed")
 
@@ -73,13 +81,14 @@ def _issue_payload(issue) -> dict:
 def process_queue(app) -> None:
     with app.app_context():
         token = app.config["GITHUB_TOKEN"]
-        repo = app.config["GITHUB_REPO"]
-        if not token or not repo:
+        if not token:
             return
         tasks = db.query(
             "SELECT * FROM sync_queue WHERE status = 'pending' AND attempts < ? "
             "ORDER BY id ASC LIMIT 10", (MAX_ATTEMPTS,))
         for task in tasks:
+            # 目标仓库：任务行未记录（旧数据）→ 默认游戏仓库
+            repo = task["repo"] or app.config["GITHUB_REPO"]
             issue = db.query(
                 """SELECT i.*, u.username AS author_name FROM issues i
                    LEFT JOIN users u ON u.id = i.author_id WHERE i.id = ?""",
@@ -90,8 +99,9 @@ def process_queue(app) -> None:
                 continue
             try:
                 gh_number = issue["github_number"]
+                task_repo = task["repo"] or repo
                 if task["action"] == "create":
-                    data = _gh_request("POST", f"{API}/repos/{repo}/issues", token,
+                    data = _gh_request("POST", f"{API}/repos/{task_repo}/issues", token,
                                        _issue_payload(issue))
                     db.execute(
                         "UPDATE issues SET github_number = ?, github_url = ?, "
@@ -100,7 +110,7 @@ def process_queue(app) -> None:
                 else:
                     if not gh_number:
                         # 尚未在 GitHub 创建 → 先补创建
-                        data = _gh_request("POST", f"{API}/repos/{repo}/issues", token,
+                        data = _gh_request("POST", f"{API}/repos/{task_repo}/issues", token,
                                            _issue_payload(issue))
                         db.execute(
                             "UPDATE issues SET github_number = ?, github_url = ?, "
@@ -108,10 +118,10 @@ def process_queue(app) -> None:
                             (data.get("number"), data.get("html_url"), issue["id"]))
                         gh_number = data.get("number")
                     elif task["action"] == "update":
-                        _gh_request("PATCH", f"{API}/repos/{repo}/issues/{gh_number}", token,
+                        _gh_request("PATCH", f"{API}/repos/{task_repo}/issues/{gh_number}", token,
                                     _issue_payload(issue))
                     elif task["action"] in ("close", "reopen"):
-                        _gh_request("PATCH", f"{API}/repos/{repo}/issues/{gh_number}", token,
+                        _gh_request("PATCH", f"{API}/repos/{task_repo}/issues/{gh_number}", token,
                                     {"state": "closed" if task["action"] == "close" else "open"})
                 db.execute("UPDATE sync_queue SET status='done', finished_at=datetime('now') "
                            "WHERE id = ?", (task["id"],))

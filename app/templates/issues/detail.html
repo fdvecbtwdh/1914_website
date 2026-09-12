@@ -27,6 +27,8 @@
       </p>
       <p style="margin:10px 0 0">
         <span class="status-pill" style="background:{{ {('open'):'#4a9e4a','in_progress':'#c9a227','resolved':'#3a7bbf','closed':'#777777','duplicate':'#9b59b6'}.get(issue.status) }}">{{ statuses[issue.status] }}</span>
+        {% if issue.component == 'web' %}<span class="badge badge-brass">🌐 网页</span>
+        {% else %}<span class="badge badge-olive">🎮 游戏本体</span>{% endif %}
         {% if issue.priority != 'none' %}<span class="priority-chip" style="color:{{ {('none'):'#777','low':'#3a7bbf','medium':'#c9a227','high':'#d35400','critical':'#b03030'}.get(issue.priority) }};font-size:.95em">优先级：{{ priorities[issue.priority] }}</span>{% endif %}
         {% for l in labels %}<span class="label-chip" style="background:{{ l.color }}">{{ l.name }}</span>{% endfor %}
         {% if issue.status == 'duplicate' and dup_of %}
