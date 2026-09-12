@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}消息 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:760px">
+  <div class="page-title">
+    <h1>消息</h1>
+    <span class="sub">共 {{ total }} 条 · 按时间从新到旧</span>
+  </div>
+
+  <div class="msg-list">
+    {% for n in items %}
+    <div class="msg-row">
+      {% if n.url %}
+      <a class="msg-link" href="{{ n.url }}">
+        <span class="msg-text"><b>{{ n.actor_name or '已注销用户' }}</b> {{ n.text }}</span>
+        <span class="msg-time">{{ n.created_at|ago }}</span>
+      </a>
+      {% else %}
+      <div class="msg-link msg-gone">
+        <span class="msg-text">{{ n.text }} <span class="badge">该内容已被删除</span></span>
+        <span class="msg-time">{{ n.created_at|ago }}</span>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state"><span class="icon">📭</span>还没有消息。</div>
+    {% endfor %}
+  </div>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/messages?page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

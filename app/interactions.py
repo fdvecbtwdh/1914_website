@@ -44,12 +44,26 @@ def vote(user_id: int, target_type: str, target_id: int) -> dict:
                 "INSERT INTO votes (user_id, target_type, target_id) VALUES (?,?,?)",
                 (user_id, target_type, target_id))
             voted = True
+            _notify_vote(user_id, target_type, target_id)
         except Exception:
             # 并发下唯一约束兜底：说明已投过，视为取消意图重试一次
             db.execute("DELETE FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?",
                        (user_id, target_type, target_id))
             voted = False
     return {"voted": voted, "count": vote_count(target_type, target_id)}
+
+
+def _notify_vote(voter_id: int, target_type: str, target_id: int) -> None:
+    """投票成功后通知内容作者（自己的内容不通知）。"""
+    from .notify import notify
+    if target_type == "card":
+        author = db.query("SELECT author_id FROM cards WHERE id = ?", (target_id,), one=True)
+        if author and author["author_id"] and author["author_id"] != voter_id:
+            notify(author["author_id"], voter_id, "card_vote", card_id=target_id)
+    elif target_type == "issue":
+        author = db.query("SELECT author_id FROM issues WHERE id = ?", (target_id,), one=True)
+        if author and author["author_id"] and author["author_id"] != voter_id:
+            notify(author["author_id"], voter_id, "issue_vote", issue_id=target_id)
 
 
 def vote_count(target_type: str, target_id: int) -> int:
@@ -114,6 +128,26 @@ def add_comment(user_id: int, target_type: str, target_id: int,
         "INSERT INTO comments (target_type, target_id, author_id, parent_id, body, body_html) "
         "VALUES (?,?,?,?,?,?)",
         (target_type, target_id, user_id, parent_id, body, render_markdown(body)))
+
+    # ---- 站内消息 ----
+    from .notify import notify
+    if target_type == "card":
+        card = db.query("SELECT author_id, name FROM cards WHERE id = ?",
+                        (target_id,), one=True)
+        if card and card["author_id"] and card["author_id"] != user_id and not parent_id:
+            notify(card["author_id"], user_id, "card_comment", card_id=target_id,
+                   comment_id=cid)
+    else:
+        issue = db.query("SELECT author_id FROM issues WHERE id = ?",
+                         (target_id,), one=True)
+        if issue and issue["author_id"] and issue["author_id"] != user_id and not parent_id:
+            notify(issue["author_id"], user_id, "issue_comment", issue_id=target_id,
+                   comment_id=cid)
+    if parent_id:
+        parent = db.query("SELECT author_id FROM comments WHERE id = ?", (parent_id,), one=True)
+        if parent and parent["author_id"] and parent["author_id"] != user_id:
+            notify(parent["author_id"], user_id, "comment_reply", card_id=target_id,
+                   comment_id=cid)
     return cid
 
 

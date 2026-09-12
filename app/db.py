@@ -79,11 +79,19 @@ def init_db(db_path: str) -> None:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
+        _pre_migrate(conn)
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         _migrate(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _pre_migrate(conn: sqlite3.Connection) -> None:
+    """旧版 notifications 表（从未使用）先删除，让新结构随 schema 重建。"""
+    tcols = [r[1] for r in conn.execute("PRAGMA table_info(notifications)")]
+    if tcols and "recipient_id" not in tcols:
+        conn.execute("DROP TABLE notifications")
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
@@ -102,3 +110,5 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN security_question TEXT")
     if "security_answer_hash" not in ucols:
         conn.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT")
+    if "last_viewed_messages_at" not in ucols:
+        conn.execute("ALTER TABLE users ADD COLUMN last_viewed_messages_at TEXT")

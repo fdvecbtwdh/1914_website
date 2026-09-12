@@ -127,16 +127,6 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 
-CREATE TABLE IF NOT EXISTS notifications (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type       TEXT NOT NULL,
-    payload    TEXT NOT NULL DEFAULT '{}',  -- JSON
-    is_read    INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
-
 -- GitHub 同步队列：站点数据库始终是主数据源，同步失败不影响站点
 CREATE TABLE IF NOT EXISTS sync_queue (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,6 +170,20 @@ CREATE TABLE IF NOT EXISTS recovery_tokens (
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_recovery_tokens_user ON recovery_tokens(user_id);
+
+-- 站内消息（不做逐条已读；用户级 last_viewed_messages_at 记录查看位置）
+CREATE TABLE IF NOT EXISTS notifications (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    type         TEXT NOT NULL,   -- card_comment / comment_reply / card_vote / issue_comment / issue_vote
+    card_id      INTEGER,
+    issue_id     INTEGER,
+    comment_id   INTEGER,
+    dedup_key    TEXT UNIQUE,     -- 防重复（同一操作重试只产生一条）
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_rcpt ON notifications(recipient_id, created_at);
 
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,

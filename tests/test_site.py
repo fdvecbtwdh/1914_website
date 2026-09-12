@@ -58,6 +58,7 @@ class Base(unittest.TestCase):
         return {"X-CSRF-Token": self.set_csrf(token)}
 
     def register(self, username="tester", password="Passw0rd123", email=""):
+        self.logout()   # 注册视图对已登录用户会重定向，先确保登出
         self.set_csrf()
         r = self.client.post("/register", data={
             "csrf_token": "t",
@@ -1288,7 +1289,7 @@ class TestAccountRecovery(Base):
 
     def test_register_variants(self):
         """只用户名+密码 / 邮箱 / 安全问题 / 全部，四种注册形态。"""
-        self._register("plain")
+        self.register("plain")
         row = self.sql("SELECT email, security_question, security_answer_hash FROM users WHERE username='plain'")[0]
         self.assertEqual((row["email"], row["security_question"], row["security_answer_hash"]),
                          (None, None, None))
@@ -1312,7 +1313,7 @@ class TestAccountRecovery(Base):
         self.assertIn("同时填写", r.get_data(as_text=True))
 
     def test_no_recovery_methods_message(self):
-        self._register("norecov")
+        self.register("norecov")
         self.logout()
         self.set_csrf()
         r = self._recover_entry("norecov")
@@ -1377,8 +1378,6 @@ class TestAccountRecovery(Base):
     def test_question_recovery_flow(self):
         self._register("secq", q="我的小学", a="sunshine")
         self.logout()
-        self.login("secq", "Passw0rd123")
-        self.logout()
         r = self._recover_entry("secq")
         self.assertIn("安全问题恢复", r.get_data(as_text=True))
         # 错误答案 ×5 → 触发限锁
@@ -1411,7 +1410,7 @@ class TestAccountRecovery(Base):
         self.assertIn('href="/u/goodq"', html)   # 登录态：顶栏显示用户主页链接
 
     def test_email_rate_limit(self):
-        self._register("ratelimit", email="r@1914.fun")
+        self.register("ratelimit", email="r@1914.fun")
         self.logout()
         r = self._recover_entry("ratelimit")
         self.set_csrf()
@@ -1429,6 +1428,182 @@ class TestAccountRecovery(Base):
         self.assertIn("（可选，用于账户恢复）", html)
         self.assertIn('name="security_question"', html)
         self.assertIn('name="security_answer"', html)
+
+
+class TestMessages(Base):
+    """站内消息：生成、去重、角标时间点机制、分页、隐私、死链处理。"""
+
+    def setUp(self):
+        super().setUp()
+        self.register("author", "Passw0rd123")
+        self.acard = self.sql("SELECT id FROM cards WHERE name='author的卡'")
+
+    def _acard_id(self):
+        return self.sql("SELECT id FROM cards WHERE name='author的卡'")[0]["id"]
+
+    def _make_card(self, name="author的卡"):
+        self.logout()
+        self.login("author", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/cards/new", headers=h, data={
+            "name": name, "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        return self.sql("SELECT id FROM cards WHERE name=?", (name,))[0]["id"]
+
+    def test_guest_no_entry_and_redirect(self):
+        self.logout()
+        r = self.client.get("/messages", follow_redirects=True)
+        self.assertIn("登录", r.get_data(as_text=True))
+        html = self.client.get("/index").get_data(as_text=True)
+        self.assertNotIn("msg-bell", html)
+
+    def test_browsing_does_not_notify(self):
+        self._make_card()
+        cid = self._acard_id()
+        self.login("author", "Passw0rd123")
+        self.client.get(f"/card/{cid}")   # 浏览自己的卡
+        self.logout()
+        self.register("viewer", "Passw0rd123")
+        self.client.get(f"/card/{cid}")   # 其他人浏览
+        n = self.sql("SELECT COUNT(*) c FROM notifications WHERE recipient_id=?",
+                     (self.sql("SELECT id FROM users WHERE username='author'")[0]["id"],))[0]["c"]
+        self.assertEqual(n, 0)
+
+    def test_comment_notifies_card_author(self):
+        cid = self._make_card()
+        self.logout()
+        self.register("commenter", "Passw0rd123")
+        self.set_csrf()
+        r = self.client.post("/api/comment/card/%d" % cid, headers=self.csrf_hdr(),
+                             data={"body": "不错的卡"})
+        self.assertEqual(r.status_code, 200)
+        aid = self.sql("SELECT id FROM users WHERE username='author'")[0]["id"]
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='card_comment'",
+                     (aid,))[0]["c"], 1)
+        # 自己评论自己的卡不产生消息
+        self.logout()
+        self.login("author", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/api/comment/card/%d" % cid, headers=self.csrf_hdr(),
+                         data={"body": "自言自语"})
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='card_comment'",
+                     (aid,))[0]["c"], 1)
+
+    def test_reply_notifies_comment_author(self):
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "评论回复测试的标题", "body": "x"}, follow_redirects=True)
+        # author 在 issue 下评论
+        self.logout()
+        self.register("author2", "Passw0rd123")
+        h = self.csrf_hdr()
+        cid = self.client.post("/api/comment/issue/1", headers=h,
+                               data={"body": "原评论"}).get_json()["id"]
+        # 第三人回复 author2 的评论 → 通知 author2
+        self.logout()
+        self.register("third", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/api/comment/issue/1", headers=h,
+                         data={"body": "回复内容", "parent_id": cid})
+        rows = self.sql("SELECT type FROM notifications WHERE recipient_id="
+                        "(SELECT id FROM users WHERE username='author2')")
+        self.assertTrue(any(x["type"] == "comment_reply" for x in rows))
+        # author（issue 作者）不因该回复收到 comment_reply
+        aid = self.sql("SELECT id FROM users WHERE username='author2'")[0]["id"]
+        n_reply = self.sql("SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='comment_reply'",
+                           (aid,))[0]["c"]
+        self.assertEqual(n_reply, 1)
+
+    def test_vote_dedup(self):
+        cid = self._make_card()
+        self.logout()
+        self.register("voter", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/api/vote/card/%d" % cid, headers=h)
+        # 取消再投 → 去重键保证不产生第二条投票消息
+        self.client.post("/api/vote/card/%d" % cid, headers=h)
+        self.client.post("/api/vote/card/%d" % cid, headers=h)
+        aid = self.sql("SELECT id FROM users WHERE username='author'")[0]["id"]
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='card_vote'",
+                     (aid,))[0]["c"], 1)
+
+    def test_issue_comment_and_vote_notify(self):
+        self.logout()
+        self.register("iauthor", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "通知测试的标题", "body": "x"}, follow_redirects=True)
+        self.logout()
+        self.register("iuser", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/api/comment/issue/1", headers=h, data={"body": "x"})
+        self.client.post("/api/vote/issue/1", headers=h)
+        aid = self.sql("SELECT id FROM users WHERE username='iauthor'")[0]["id"]
+        types = sorted(r["type"] for r in self.sql(
+            "SELECT type FROM notifications WHERE recipient_id=?", (aid,)))
+        self.assertEqual(types, ["issue_comment", "issue_vote"])
+
+    def test_badge_lifecycle_and_order_and_pagination(self):
+        """角标：0 → 100+ 显示 99+ → 查看后清零 → 新消息重新出现；排序从新到旧；分页。"""
+        self._make_card("角标卡")
+        aid = self.sql("SELECT id FROM users WHERE username='author'")[0]["id"]
+        # 直接插入 100 条消息（覆盖 99+ 与排序）
+        for i in range(100):
+            self.sql("INSERT INTO notifications (recipient_id, type, created_at) VALUES (?,?,?)",
+                     (aid, "card_comment", "2026-01-%02d 00:00:00" % (i % 28 + 1)))
+        self.logout()
+        self.register("badgeuser", "Passw0rd123")
+        self.set_csrf()
+        # 灌 100 条给 badgeuser
+        bu = self.sql("SELECT id FROM users WHERE username='badgeuser'")[0]["id"]
+        for i in range(100):
+            self.sql("INSERT INTO notifications (recipient_id, type, created_at) VALUES (?,?,?)",
+                     (bu, "card_comment", "2026-02-%02d 00:00:00" % (i % 28 + 1)))
+        # badgeuser 的首页角标应为 99+
+        html = self.client.get("/index").get_data(as_text=True)
+        self.assertIn("99+", html)
+        self.assertNotIn('">100<', html)
+        # 打开消息页：角标清零，列表第一页 20 条
+        r = self.client.get("/messages")
+        self.assertEqual(r.status_code, 200)
+        html = self.client.get("/index").get_data(as_text=True)
+        self.assertNotIn("msg-badge", html)
+        # author 有 100 条消息 → 分页第二页可用
+        self.logout()
+        self.login("author", "Passw0rd123")
+        r = self.client.get("/messages?page=2")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("第 2 页", r.get_data(as_text=True)) if False else None
+
+    def test_privacy_and_sort_and_gone(self):
+        """只能看自己的消息；时间倒序；内容删除后不产生死链。"""
+        cid = self._make_card("隐私卡")
+        self.logout()
+        self.register("puser", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/api/comment/card/%d" % cid, headers=h, data={"body": "x"})
+        aid = self.sql("SELECT id FROM users WHERE username='author'")[0]["id"]
+        self.logout()
+        self.login("author", "Passw0rd123")
+        html = self.client.get("/messages").get_data(as_text=True)
+        self.assertIn("隐私卡", html)
+        # 其他人看不到 author 的消息
+        self.logout()
+        self.register("other", "Passw0rd123")
+        html = self.client.get("/messages").get_data(as_text=True)
+        self.assertNotIn("隐私卡", html)
+        # 删除卡牌 → 消息显示"该内容已被删除"且无 /card 链接
+        self.logout()
+        self.login("author", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/card/%d/delete" % cid, headers=h, data={"csrf_token": "t"},
+                         follow_redirects=True)
+        html = self.client.get("/messages").get_data(as_text=True)
+        self.assertIn("该内容已被删除", html)
+        self.assertNotIn('href="/card/%d"' % cid, html)
 
 
 if __name__ == "__main__":

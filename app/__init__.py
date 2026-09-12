@@ -32,6 +32,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from . import api as api_bp_mod
     from . import nav as nav_bp_mod
     from . import serverstatus as ss_bp_mod
+    from . import messages as msg_bp_mod
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cards_bp_mod.bp)
@@ -42,6 +43,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(api_bp_mod.bp)
     app.register_blueprint(nav_bp_mod.bp)
     app.register_blueprint(ss_bp_mod.bp)
+    app.register_blueprint(msg_bp_mod.bp)
 
     # 状态页后台采样线程（网站启动时采样一次，之后每 30 秒更新快照）
     if app.config.get("STATUS_SAMPLER_ENABLED", True):
@@ -77,6 +79,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             "rarities": RARITIES,
             "card_types": CARD_TYPES,
             "card_tag_descs": CARD_TAGS,
+            "unread_count": (lambda: __import__("app.notify", fromlist=["x"]).unread_count(u["id"])
+                             if u is not None else 0)(),
         }
 
     @app.template_filter("md")

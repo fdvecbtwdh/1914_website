@@ -22,7 +22,7 @@
 
   <div class="comment-list" style="margin-top:18px">
     {% for c in comments %}
-    <div data-comment-root="{{ c.id }}" class="comment">
+    <div id="comment-{{ c.id }}" data-comment-root="{{ c.id }}" class="comment">
       <div class="comment-head">
         <a class="author" href="/u/{{ c.username or '?' }}">{{ c.username or '已注销' }}</a>
         {% if c.author_role in ('admin', 'moderator') %}<span class="badge badge-olive">{{ '管理员' if c.author_role == 'admin' else '版主' }}</span>{% endif %}
@@ -47,7 +47,7 @@
       {% if c.replies %}
       <div class="comment-replies">
         {% for r in c.replies %}
-        <div data-comment-root="{{ r.id }}" class="comment">
+        <div id="comment-{{ r.id }}" data-comment-root="{{ r.id }}" class="comment">
           <div class="comment-head">
             <a class="author" href="/u/{{ r.username or '?' }}">{{ r.username or '已注销' }}</a>
             {% if r.author_role in ('admin', 'moderator') %}<span class="badge badge-olive">{{ '管理员' if r.author_role == 'admin' else '版主' }}</span>{% endif %}

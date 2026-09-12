@@ -31,6 +31,9 @@
     </nav>
     <div class="header-actions">
       {% if current_user %}
+        <a class="msg-bell" href="/messages" title="消息">
+          🔔 消息{% if unread_count %}<span class="msg-badge">{{ '99+' if unread_count > 99 else unread_count }}</span>{% endif %}
+        </a>
         <a class="username" href="/u/{{ current_user['username'] }}">{{ current_user['username'] }}</a>
         {% if current_user['role'] == 'admin' %}<a class="btn btn-sm" href="/admin">后台</a>{% endif %}
         <form method="post" action="/logout" style="display:inline">
