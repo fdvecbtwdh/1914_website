@@ -13,7 +13,7 @@
     <span class="sub">注册于 {{ user.created_at|dt }}（{{ user.created_at|ago }}）</span>
   </div>
 
-  {% if user.bio %}<p style="color:var(--text-dim);margin-top:0">{{ user.bio }}</p>{% endif %}
+  {% if user.bio %}<p style="color:var(--text-dim);margin-top:0;overflow-wrap:anywhere">{{ user.bio }}</p>{% endif %}
 
   <div class="stat-strip" style="margin-bottom:22px">
     <div class="stat"><b>{{ stats.cards }}</b><span>卡牌投稿</span></div>

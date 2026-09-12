@@ -513,6 +513,9 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
 .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; }
 .empty-state .icon { font-size: 2.2rem; display: block; margin-bottom: 8px; opacity: .6; }
 
+/* 用户生成的 Markdown 内容：长无空格字符串（URL/哈希等）不得撑破布局 */
+.comment-body, .md-body, .preview-pane { overflow-wrap: anywhere; }
+
 /* ---------- 移动端 ---------- */
 .menu-toggle { display: none; }
 /* 筛选折叠容器：桌面端 summary 隐藏、内容常开（open 由 JS 兜底）；仅移动端显示 summary */
