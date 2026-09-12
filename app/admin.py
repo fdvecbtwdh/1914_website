@@ -107,7 +107,8 @@ def users_batch():
     auth.check_csrf()
     ids = _parse_ids()
     action = request.form.get("action", "")
-    if not _batch_guard(action, ids, {"ban", "unban", "set_user", "set_moderator", "set_admin"}):
+    if not _batch_guard(action, ids, {"ban", "unban", "set_user", "set_moderator",
+                                      "set_admin", "delete"}):
         return _back("admin.users")
     me = auth.current_user()
     done = skipped = 0
@@ -124,13 +125,18 @@ def users_batch():
             auth.revoke_all_sessions(uid)
         elif action == "unban":
             db.execute("UPDATE users SET is_banned = 0 WHERE id = ?", (uid,))
+        elif action == "delete":
+            db.execute("DELETE FROM users WHERE id = ?", (uid,))  # 内容保留，作者置空
         else:
             role = action.split("_", 1)[1]
             db.execute("UPDATE users SET role = ? WHERE id = ?", (role, uid))
             auth.revoke_all_sessions(uid)  # 角色变更后重新登录生效
         auth.audit(f"user_{action}", "user", uid, target["username"])
         done += 1
-    flash(f"批量操作完成：成功 {done}，跳过 {skipped}", "success")
+    label = {"ban": "封禁", "unban": "解封", "delete": "删除",
+             "set_user": "设为 user", "set_moderator": "设为 moderator",
+             "set_admin": "设为 admin"}[action]
+    flash(f"批量操作完成：{label} {done}，跳过 {skipped}", "success")
     return _back("admin.users")
 
 
@@ -154,6 +160,10 @@ def user_action(user_id: int):
         db.execute("UPDATE users SET is_banned = 0 WHERE id = ?", (user_id,))
         auth.audit("user_unban", "user", user_id, target["username"])
         flash(f"已解封 {target['username']}", "success")
+    elif action == "delete":
+        db.execute("DELETE FROM users WHERE id = ?", (user_id,))  # 投稿内容保留，作者显示为已注销
+        auth.audit("user_delete", "user", user_id, target["username"])
+        flash(f"已删除用户 {target['username']}（其投稿内容保留，显示为已注销）", "success")
     elif action in ("set_user", "set_moderator", "set_admin"):
         role = action.split("_")[1]
         db.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))

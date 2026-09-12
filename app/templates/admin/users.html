@@ -24,7 +24,7 @@
 
   <form method="post" action="/admin/users/batch{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" id="users-batch">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="batch-bar">
+      <div class="batch-bar">
       <label><input type="checkbox" id="select-all"> 全选</label>
       <select name="action">
         <option value="">— 选择批量操作 —</option>
@@ -33,6 +33,7 @@
         <option value="set_user">设为 user</option>
         <option value="set_moderator">设为 moderator</option>
         <option value="set_admin">设为 admin</option>
+        <option value="delete">删除用户</option>
       </select>
       <button class="btn btn-sm btn-primary" type="submit">应用到选中</button>
       <span id="sel-count"></span>
@@ -64,15 +65,20 @@
       <td>{% if u.is_banned %}<span class="badge badge-red">已封禁</span>{% else %}<span class="badge badge-olive">正常</span>{% endif %}</td>
       <td class="mono">{{ u.created_at|dt }}</td>
       <td>{{ u.card_count }}卡 / {{ u.issue_count }}issue</td>
-      <td>
-        <form method="post" action="/admin/users/{{ u.id }}/action">
+      <td style="white-space:nowrap">
+        <form method="post" action="/admin/users/{{ u.id }}/action" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% if u.is_banned %}
           <button class="btn btn-sm" name="action" value="unban">解封</button>
           {% else %}
-          <button class="btn btn-sm btn-danger" name="action" value="ban"
+          <button class="btn btn-sm" name="action" value="ban"
                   onclick="return confirm('确定封禁 {{ u.username }}？将同时踢出所有会话。')">封禁</button>
           {% endif %}
+        </form>
+        <form method="post" action="/admin/users/{{ u.id }}/action" style="display:inline;margin-left:6px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-danger" name="action" value="delete"
+                  onclick="return confirm('永久删除用户 {{ u.username }}？账号将被移除，其投稿内容保留但显示为已注销。')">删除用户</button>
         </form>
       </td>
     </tr>

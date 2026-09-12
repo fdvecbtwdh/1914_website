@@ -878,6 +878,52 @@ class TestAdmin(Base):
         self.assertIn('href="/index"', html)
         self.assertIn("hub-card", html)
 
+    def test_delete_user_keeps_content(self):
+        """删除用户：账号移除、投稿保留（作者置空）、用户名可重新注册。"""
+        self.logout()
+        self.register("doomed", "Passw0rd123")
+        uid = self.sql("SELECT id FROM users WHERE username='doomed'")[0]["id"]
+        h = self.csrf_hdr()
+        self.client.post("/cards/new", headers=h, data={
+            "name": "遗作卡", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "遗留问题标题", "body": "x"}, follow_redirects=True)
+        # 管理员删除该用户
+        self.logout()
+        self.login(self.admin_user, self.admin_pass)
+        h = self.csrf_hdr()
+        r = self.client.post(f"/admin/users/{uid}/action", headers=h,
+                             data={"action": "delete"}, follow_redirects=True)
+        self.assertIn("已删除用户", r.get_data(as_text=True))
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM users WHERE id=?", (uid,))[0]["c"], 0)
+        # 内容保留、作者置空
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM cards WHERE name='遗作卡' AND author_id IS NULL")[0]["c"], 1)
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM issues WHERE title='遗留问题标题' AND author_id IS NULL")[0]["c"], 1)
+        # 用户名可重新注册
+        self.logout()
+        r = self.register("doomed", "Passw0rd123")
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM users WHERE username='doomed'")[0]["c"], 1)
+
+    def test_batch_delete_users(self):
+        self.logout()
+        self.register("bdel1", "Passw0rd123")
+        self.logout()
+        self.register("bdel2", "Passw0rd123")
+        ids = [str(r["id"]) for r in self.sql(
+            "SELECT id FROM users WHERE username LIKE 'bdel%' ORDER BY id")]
+        self.logout()
+        self.login(self.admin_user, self.admin_pass)
+        h = self.csrf_hdr()
+        r = self.client.post("/admin/users/batch", headers=h,
+                             data={"action": "delete", "ids": ids}, follow_redirects=True)
+        self.assertIn("删除 2", r.get_data(as_text=True))
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM users WHERE username LIKE 'bdel%'")[0]["c"], 0)
+
     def test_audit_log_records(self):
         h = self.csrf_hdr()
         self.client.post("/admin/cards/1/action", headers=h, data={"action": "hide"})
