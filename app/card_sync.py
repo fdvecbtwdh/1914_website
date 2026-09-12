@@ -81,18 +81,20 @@ def import_official_cards(game_path: str | None = None) -> dict:
         if not isinstance(abilities, list):
             abilities = []
         existing = db.query("SELECT id FROM cards WHERE game_id = ?", (gid,), one=True)
+        # 卡牌性质：ID/名称含测试标记 → 测试卡，否则正式
+        tag = "测试" if ("test" in gid.lower() or "测试" in name) else "正式"
         if existing:
             db.execute(
                 """UPDATE cards SET name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_k=?,
                    attack=?, defense=?, vision_range=?, attack_range=?, abilities=?, rarity=?,
-                   flavor_text=?, updated_at=datetime('now') WHERE id=?""",
+                   flavor_text=?, tag=?, updated_at=datetime('now') WHERE id=?""",
                 (name, data.get("nation") or "neutral", data.get("type") or "unit",
                  data.get("unit_class") or "", int(data.get("cost_g") or 0),
                  int(data.get("cost_k") or 0), int(data.get("attack") or 0),
                  int(data.get("defense") or 0), data.get("vision_range") or "",
                  data.get("attack_range") or "", json.dumps(abilities, ensure_ascii=False),
                  data.get("rarity") or "common", data.get("flavor_text") or "",
-                 existing["id"]),
+                 tag, existing["id"]),
             )
             updated += 1
         else:
@@ -104,15 +106,15 @@ def import_official_cards(game_path: str | None = None) -> dict:
             db.execute(
                 """INSERT INTO cards (game_id, slug, name, nation, type, unit_class, cost_g, cost_k,
                    attack, defense, vision_range, attack_range, abilities, rarity, flavor_text,
-                   description, author_id, source, status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,'official','visible')""",
+                   description, author_id, source, status, tag)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,'official','visible',?)""",
                 (gid, slug, name, data.get("nation") or "neutral", data.get("type") or "unit",
                  data.get("unit_class") or "", int(data.get("cost_g") or 0),
                  int(data.get("cost_k") or 0), int(data.get("attack") or 0),
                  int(data.get("defense") or 0), data.get("vision_range") or "",
                  data.get("attack_range") or "", json.dumps(abilities, ensure_ascii=False),
                  data.get("rarity") or "common", data.get("flavor_text") or "",
-                 f"官方卡牌，来自游戏数据（`{gid}`）。"),
+                 f"官方卡牌，来自游戏数据（`{gid}`）。", tag),
             )
             created += 1
     return {"created": created, "updated": updated, "skipped": skipped}

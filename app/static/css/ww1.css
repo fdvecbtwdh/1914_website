@@ -387,6 +387,16 @@ table.data td, table.data th { padding: 9px 12px; border-bottom: 1px solid var(-
 table.data tr:hover td { background: rgba(255,255,255,.02); }
 .mono { font-family: var(--font-typewriter); font-size: .92em; }
 
+/* ---------- 卡牌性质徽章 ---------- */
+.card-tag-badge {
+  display: inline-block; padding: 0 7px; border-radius: 3px; font-size: .72rem;
+  line-height: 1.5; cursor: help; border: 1px solid rgba(255,255,255,.25);
+  font-family: var(--font-body); letter-spacing: .05em;
+}
+.card-tag-badge.tag-正式 { background: var(--olive); color: #f0f2e0; }
+.card-tag-badge.tag-测试 { background: #d35400; color: #fff; }
+.meta-table .card-tag-badge, .breadcrumb .card-tag-badge { vertical-align: middle; margin-left: 6px; }
+
 /* ---------- 状态页进度条 ---------- */
 .stat-line { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .stat-line .s-label { width: 68px; flex-shrink: 0; color: var(--muted); font-size: .88rem; }

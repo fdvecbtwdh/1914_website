@@ -41,6 +41,11 @@
       <option value="">全部稀有度</option>
       {% for k, v in rarities.items() %}<option value="{{ k }}" {% if rarity == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
     </select>
+    <select name="card_tag">
+      <option value="">全部性质</option>
+      <option value="正式" {% if card_tag == '正式' %}selected{% endif %}>🎖 正式</option>
+      <option value="测试" {% if card_tag == '测试' %}selected{% endif %}>🧪 测试</option>
+    </select>
     {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
     {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
     <button class="btn btn-sm" type="submit">筛选</button>

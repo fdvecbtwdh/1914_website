@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS cards (
     attack_range TEXT    NOT NULL DEFAULT '',
     abilities    TEXT    NOT NULL DEFAULT '[]',    -- JSON 数组，可含等级如 "坚守2"
     rarity       TEXT    NOT NULL DEFAULT 'common',-- common/silver/gold
+    tag         TEXT    NOT NULL DEFAULT '正式',  -- 卡牌性质：正式/测试（见 gameconstants.CARD_TAGS）
     art_path     TEXT    NOT NULL DEFAULT '',      -- /uploads/cards/xxx.png
     flavor_text  TEXT    NOT NULL DEFAULT '',
     description  TEXT    NOT NULL DEFAULT '',      -- Markdown

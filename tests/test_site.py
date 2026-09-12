@@ -925,6 +925,52 @@ class TestAdmin(Base):
         self.assertEqual(
             self.sql("SELECT COUNT(*) c FROM users WHERE username LIKE 'bdel%'")[0]["c"], 0)
 
+    def test_card_tag_select_filter_and_display(self):
+        """卡牌性质：投稿可选 测试/正式，徽章悬停/点击有说明，列表可筛选。"""
+        h = self.csrf_hdr()
+        # 默认正式
+        self.client.post("/cards/new", headers=h, data={
+            "name": "正式测试卡A", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data")
+        # 投稿测试卡
+        r = self.client.post("/cards/new", headers=h, data={
+            "name": "试验卡B", "type": "unit", "unit_class": "infantry",
+            "card_tag": "测试"}, content_type="multipart/form-data",
+            follow_redirects=True)
+        self.assertIn("投稿成功", r.get_data(as_text=True))
+        rows = {r2["name"]: r2["tag"] for r2 in self.sql(
+            "SELECT name, tag FROM cards WHERE name IN ('正式测试卡A','试验卡B')")}
+        self.assertEqual(rows, {"正式测试卡A": "正式", "试验卡B": "测试"})
+        # 非法值回退正式
+        self.client.post("/cards/new", headers=h, data={
+            "name": "非法tag卡", "type": "unit", "unit_class": "infantry",
+            "card_tag": "哈哈"}, content_type="multipart/form-data")
+        self.assertEqual(self.sql("SELECT tag FROM cards WHERE name='非法tag卡'")[0]["tag"],
+                         "正式")
+        # 详情页徽章 + 悬停说明
+        bid = self.sql("SELECT id FROM cards WHERE name='试验卡B'")[0]["id"]
+        html = self.client.get(f"/card/{bid}").get_data(as_text=True)
+        self.assertIn('data-tag="测试"', html)
+        self.assertIn("测试卡牌：测试时使用的卡牌", html)
+        # 列表筛选
+        html = self.client.get("/cards?card_tag=测试").get_data(as_text=True)
+        self.assertIn("试验卡B", html)
+        self.assertNotIn("正式测试卡A", html)
+        html = self.client.get("/cards?card_tag=正式").get_data(as_text=True)
+        self.assertIn("正式测试卡A", html)
+        self.assertNotIn("试验卡B", html)
+
+    def test_import_tag_heuristic(self):
+        """导入官方卡：ID/名称含 test/测试 → 测试卡，其余正式。"""
+        with self.app.app_context():
+            from app.card_sync import import_official_cards
+            import_official_cards()
+            rows = {r["game_id"]: r["tag"] for r in db.query(
+                "SELECT game_id, tag FROM cards WHERE source='official'")}
+        self.assertEqual(rows["test_infantry_01"], "测试")
+        self.assertEqual(rows["infantry_01"], "正式")
+        self.assertEqual(rows["cavalry_01"], "正式")
+
     def test_audit_log_records(self):
         h = self.csrf_hdr()
         self.client.post("/admin/cards/1/action", headers=h, data={"action": "hide"})

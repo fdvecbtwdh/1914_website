@@ -7,6 +7,8 @@
 {% if card.type == 'order' %}{% set _ = cls.append('type-order') %}{% endif %}
 {% if size %}{% set _ = cls.append('gcard-' + size) %}{% endif %}
 {% set outer = ' '.join(cls) %}
+{% set ctag = card.tag if 'tag' in card.keys() else '正式' %}
+{% set cdesc = card_tag_descs.get(ctag, '') %}
 {%- if link -%}
 <a class="card-tile" href="/card/{{ card.id }}">
 {%- endif -%}
@@ -41,6 +43,8 @@
   <div class="gcard-footer">
     <span class="nation">{{ nations.get(card.nation, card.nation) }}</span>
     <span class="cls">{{ unit_classes.get(card.unit_class, card.unit_class or '指令') }} · {{ rarities.get(card.rarity, card.rarity) }}卡</span>
+    <button class="card-tag-badge tag-{{ ctag }}" data-tag="{{ ctag }}" title="{{ ctag }}：{{ cdesc }}"
+            onclick="event.preventDefault();event.stopPropagation()">{{ ctag }}</button>
   </div>
 </div>
 {%- if link -%}

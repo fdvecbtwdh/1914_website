@@ -104,6 +104,13 @@ ISSUE_PRIORITY_COLORS = {
     "critical": "#b03030",
 }
 
+# 卡牌性质（tag 字段）——投稿/导入时选择，悬停或点击徽章显示说明
+CARD_TAGS = {
+    "正式": "正式卡牌：进入游戏正式卡池的卡牌。",
+    "测试": "测试卡牌：测试时使用的卡牌，不代表正式卡牌和样板数据。",
+}
+DEFAULT_CARD_TAG = "正式"
+
 ROLES = ("user", "moderator", "admin")
 
 

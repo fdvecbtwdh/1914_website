@@ -53,7 +53,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     # ---- 模板全局 ----
     from .gameconstants import (RANGES, ABILITIES, NATIONS, UNIT_CLASSES,
-                                UNIT_CLASS_ICONS, RARITIES, CARD_TYPES)
+                                UNIT_CLASS_ICONS, RARITIES, CARD_TYPES, CARD_TAGS)
     from flask import render_template as _rt
 
     @app.context_processor
@@ -80,6 +80,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "class_icons": UNIT_CLASS_ICONS,
             "rarities": RARITIES,
             "card_types": CARD_TYPES,
+            "card_tag_descs": CARD_TAGS,
         }
 
     @app.template_filter("md")

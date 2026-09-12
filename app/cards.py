@@ -5,7 +5,8 @@ from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 
 from . import db, auth, interactions, uploads
-from .gameconstants import (CARD_TYPES, UNIT_CLASSES, RARITIES, NATIONS,
+from .gameconstants import (CARD_TYPES, UNIT_CLASSES, RARITIES, NATIONS, CARD_TAGS,
+                            DEFAULT_CARD_TAG,
                             ABILITIES, ability_name, ability_level)
 
 bp = Blueprint("cards", __name__, url_prefix="")
@@ -28,6 +29,8 @@ def decorate_card(row, with_meta: bool = False) -> dict:
     d["type_label"] = CARD_TYPES.get(d.get("type"), d.get("type"))
     d["class_label"] = UNIT_CLASSES.get(d.get("unit_class"), d.get("unit_class") or "—")
     d["rarity_label"] = RARITIES.get(d.get("rarity"), d.get("rarity"))
+    d["tag"] = d.get("tag") or "正式"
+    d["tag_desc"] = CARD_TAGS.get(d["tag"], "")
     d["nation_label"] = NATIONS.get(d.get("nation"), d.get("nation"))
     if with_meta:
         d["vote_count"] = interactions.vote_count("card", d["id"])
@@ -73,6 +76,7 @@ def _validate_card_form(form) -> tuple[dict, str | None]:
         "unit_class": unit_class,
         "nation": form.get("nation") if form.get("nation") in NATIONS else "neutral",
         "rarity": form.get("rarity") if form.get("rarity") in RARITIES else "common",
+        "card_tag": form.get("card_tag") if form.get("card_tag") in CARD_TAGS else DEFAULT_CARD_TAG,
         "cost_g": _int("cost_g", 0, 999),
         "cost_k": _int("cost_k", 0, 99),
         "attack": _int("attack", 0, 99),
@@ -134,6 +138,10 @@ def card_list():
 
     where = ["c.status = 'visible'"]
     args: list = []
+    card_tag = request.args.get("card_tag", "")
+    if card_tag in CARD_TAGS:
+        where.append("c.tag = ?")
+        args.append(card_tag)
     if source in ("official", "community"):
         where.append("c.source = ?")
         args.append(source)
@@ -186,7 +194,7 @@ def card_list():
     resp = make_response(render_template(
         "cards/list.html", cards=cards, total=total, page=page, pages=pages,
         sort=sort, q=q, card_type=card_type, unit_class=unit_class,
-        rarity=rarity, tag=tag, source=source, view=view,
+        rarity=rarity, tag=tag, source=source, view=view, card_tag=card_tag,
         card_types=CARD_TYPES, unit_classes=UNIT_CLASSES, rarities=RARITIES,
         hot_tags=_hot_tags()))
     if view_param in CARD_VIEWS:
@@ -232,13 +240,13 @@ def card_new():
             card_id = db.execute(
                 """INSERT INTO cards (slug, name, nation, type, unit_class, cost_g, cost_k, attack,
                    defense, vision_range, attack_range, abilities, rarity, art_path, flavor_text,
-                   description, author_id, source, status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'visible')""",
+                   description, author_id, source, status, tag)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'visible',?)""",
                 (slug, fields["name"], fields["nation"], fields["type"], fields["unit_class"],
                  fields["cost_g"], fields["cost_k"], fields["attack"], fields["defense"],
                  fields["vision_range"], fields["attack_range"], fields["abilities"],
                  fields["rarity"], art_url, fields["flavor_text"], fields["description"],
-                 user["id"], source))
+                 user["id"], source, fields["card_tag"]))
             _set_labels("card", card_id, request.form.get("tags", ""))
             auth.audit("card_create", "card", card_id, fields["name"])
             flash("官方卡牌投稿成功！" if source == "official" else "卡牌投稿成功！", "success")
@@ -322,13 +330,13 @@ def card_edit(card_id: int):
             db.execute(
                 """UPDATE cards SET slug=?, name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_k=?,
                    attack=?, defense=?, vision_range=?, attack_range=?, abilities=?, rarity=?,
-                   art_path=?, flavor_text=?, description=?, source=?, updated_at=datetime('now')
+                   art_path=?, flavor_text=?, description=?, source=?, tag=?, updated_at=datetime('now')
                    WHERE id=?""",
                 (slug, fields["name"], fields["nation"], fields["type"], fields["unit_class"],
                  fields["cost_g"], fields["cost_k"], fields["attack"], fields["defense"],
                  fields["vision_range"], fields["attack_range"], fields["abilities"],
                  fields["rarity"], art_url, fields["flavor_text"], fields["description"],
-                 new_source, card_id))
+                 new_source, fields.get("card_tag", row["tag"]), card_id))
             _set_labels("card", card_id, request.form.get("tags", ""))
             auth.audit("card_edit", "card", card_id, fields["name"])
             flash("卡牌已更新", "success")

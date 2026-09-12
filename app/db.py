@@ -75,11 +75,21 @@ def update(sql: str, args: tuple = ()) -> int:
 
 
 def init_db(db_path: str) -> None:
-    """初始化数据库结构（幂等）。可在无 Flask 上下文时调用。"""
+    """初始化数据库结构（幂等），并做轻量迁移（如补新增列）。"""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(cards)")]
+    if "tag" not in cols:
+        conn.execute("ALTER TABLE cards ADD COLUMN tag TEXT NOT NULL DEFAULT '正式'")
+        # 存量卡牌：名字/ID 带测试标记的归为测试卡
+        conn.execute("UPDATE cards SET tag='测试' "
+                     "WHERE lower(COALESCE(game_id,'')) LIKE '%test%' OR name LIKE '%测试%'")

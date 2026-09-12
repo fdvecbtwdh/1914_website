@@ -185,6 +185,32 @@
     });
   });
 
+  /* ---------- 卡牌性质徽章：点击显示详情 ---------- */
+  try {
+    var tagJson = document.getElementById("card-tag-descs");
+    window.CARD_TAG_DESCS = tagJson ? JSON.parse(tagJson.textContent) : {};
+  } catch (err) { window.CARD_TAG_DESCS = {}; }
+  var tagDialog = null;
+  document.addEventListener("click", function (e) {
+    var badge = e.target.closest(".card-tag-badge");
+    if (!badge) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var tag = badge.dataset.tag || "";
+    var desc = (window.CARD_TAG_DESCS || {})[tag] || "";
+    if (!tagDialog) {
+      tagDialog = document.createElement("dialog");
+      tagDialog.className = "report-dialog";
+      document.body.appendChild(tagDialog);
+    }
+    tagDialog.innerHTML =
+      '<h3 style="margin:0 0 10px;color:var(--brass-bright)">' + tag + '</h3>' +
+      '<p style="margin:0 0 14px">' + desc + '</p>' +
+      '<form method="dialog" style="text-align:right">' +
+      '<button class="btn btn-sm btn-primary">知道了</button></form>';
+    tagDialog.showModal();
+  });
+
   /* ---------- 移动端抽屉菜单 ---------- */
   var menuToggle = document.getElementById("menu-toggle");
   if (menuToggle) {
