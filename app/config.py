@@ -68,6 +68,9 @@ class Config:
     # --- 状态页采样 ---
     STATUS_SAMPLER_ENABLED = _bool("STATUS_SAMPLER_ENABLED", "1")
 
+    # --- 空数据库自动播种（官方卡牌 + 标签 + 初始管理员 admin/随机密码） ---
+    AUTO_SEED = _bool("AUTO_SEED", "1")
+
     # --- 会话 / 安全 ---
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

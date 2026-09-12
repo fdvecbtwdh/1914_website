@@ -38,6 +38,7 @@ class Base(unittest.TestCase):
             "GITHUB_TOKEN": "",
             "COOKIE_SECURE": False,
             "STATUS_SAMPLER_ENABLED": False,
+            "AUTO_SEED": False,
         }
         self.app = create_app(config)
         self.client = self.app.test_client()
@@ -1024,6 +1025,52 @@ class TestServerStatus(Base):
         self.assertIn("在线", html)
         self.assertIn("数据更新", html)  # "心跳"表述已替换
 
+
+
+class TestAutoSeed(unittest.TestCase):
+    """空库启动自动播种：官方卡牌/标签/管理员；二次启动不重复。"""
+
+    def setUp(self):
+        self.tmps = []
+
+    def tearDown(self):
+        import shutil
+        for t in self.tmps:
+            shutil.rmtree(t, ignore_errors=True)
+
+    def _app(self, db_path):
+        self.tmps.append(Path(db_path).parent)
+        return create_app({
+            "DB_PATH": db_path,
+            "UPLOAD_DIR": Path(db_path).parent / "uploads",
+            "TESTING": True,
+            "SECRET_KEY": "s2",
+            "GITHUB_SYNC_ENABLED": False,
+            "GITHUB_TOKEN": "",
+            "COOKIE_SECURE": False,
+            "AUTO_SEED": True,
+        })
+
+    def test_seed_on_fresh_db(self):
+        dbp = os.path.join(tempfile.mkdtemp(prefix="1914_seed_"), "a.db")
+        app = self._app(dbp)
+        with app.app_context():
+            self.assertEqual(db.query("SELECT COUNT(*) n FROM cards", one=True)["n"], 16)
+            self.assertGreaterEqual(db.query("SELECT COUNT(*) n FROM labels", one=True)["n"], 8)
+            admin = db.query("SELECT username, role FROM users WHERE username='admin'", one=True)
+            self.assertIsNotNone(admin)
+            self.assertEqual(admin["role"], "admin")
+
+    def test_reseed_idempotent(self):
+        dbp = os.path.join(tempfile.mkdtemp(prefix="1914_seed_"), "a.db")
+        self._app(dbp)   # 第一次启动播种
+        self._app(dbp)   # 第二次启动不重复
+        import sqlite3
+        conn = sqlite3.connect(dbp)
+        cards = conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0]
+        users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        conn.close()
+        self.assertEqual((cards, users), (16, 1))
 
 
 if __name__ == "__main__":

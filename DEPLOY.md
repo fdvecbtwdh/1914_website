@@ -188,11 +188,16 @@ PORT=8000
 -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
 ```
 
-**5.2 游戏服务器状态页（可选）**：状态页 `/status` 的"游戏服务器"面板需要游戏服务端
+**5.2 数据库自动恢复**：网站启动时若检测到**空数据库**（例如删除了 `data914.db`），
+会自动重建表结构、导入 16 张官方卡牌与默认标签，并生成初始管理员 `admin`
+（随机密码打印到启动控制台与 `data\service.log`，搜索关键字 `[1914]`）。
+已有数据的数据库不会被改动。此行为可用 `.env` 中 `AUTO_SEED=0` 关闭。
+
+**5.3 游戏服务器状态页（可选）**：状态页 `/status` 的"游戏服务器"面板需要游戏服务端
 按协议上报数据。在 `.env` 中设置 `GAME_SERVER_TOKEN=<随机字符串>` 启用接收接口，
 协议见游戏项目 `docs/web-integration.md`；不设置则该面板显示"不可用"，网站其余功能不受影响。
 
-**5.3 GitHub 同步（可选）**：想要网站 Issue 推送到 GitHub，在 `.env` 里填
+**5.4 GitHub 同步（可选）**：想要网站 Issue 推送到 GitHub，在 `.env` 里填
 `GITHUB_TOKEN=ghp_xxx`（GitHub → Settings → Developer settings → PAT classic，勾 `repo` 权限）。
 不填则该功能静默关闭，站点一切正常。
 
@@ -426,6 +431,7 @@ sc.exe query cloudflared
 | 能打开但无法登录 | `.env` 的 `COOKIE_SECURE` 必须为 `1` 且通过 https 访问；换过 `SESSION_SECRET` 会使所有旧会话失效（重新登录即可） |
 | 图片上传后 404 | `UPLOAD_DIR` 路径与实际不符（注意用正斜杠 `C:/...`） |
 | 官方卡导入为 0 | 服务器没有游戏项目属正常（用内置 seed/）；确需从游戏项目导入则设置 `GAME_PROJECT_PATH` |
+| 忘记管理员密码 | 删除 `data914.db` 后重启可整体重置（数据清空）；或用其他管理员账号在后台改密 |
 | 502 Bad Gateway | 网站服务没起来：`nssm status 1914site`，查 service.log |
 
 ---
