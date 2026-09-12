@@ -13,7 +13,7 @@
 | 游客浏览 | 首页 / 游戏介绍 / 卡牌列表·详情·搜索 / Issue 浏览·搜索 / 用户主页 / 评论与投票数 |
 | 账号系统 | 注册（用户名+密码，邮箱选填）、Argon2 密码哈希、数据库会话（HttpOnly/Secure/SameSite cookie）、CSRF 防护、登录限速防爆破、角色 user/moderator/admin |
 | 卡牌社区 | 官方卡牌从游戏项目 JSON 自动导入；玩家投稿、编辑、隐藏/删除；最新/热门/评论最多排序；按类型/兵种/稀有度/标签筛选；搜索 |
-| 卡牌预览 | 网站卡面完全使用游戏真实字段（名称/兵种/经济 G/指挥点 K/攻防/视野/射程/词条/稀有度/风味文字），铜银金边框 |
+| 卡牌预览 | 网站卡面完全使用游戏真实字段（名称/兵种/经济 G/战争点 Z/攻防/视野/射程/词条/稀有度/风味文字），铜银金边框 |
 | Bug/Issue | 类 GitHub Issues：Open / In Progress / Resolved / Closed / Duplicate；优先级、标签、Markdown（消毒后渲染）、复现步骤 |
 | 评论 | 两层评论（评论+回复）、编辑、删除、举报、Markdown 消毒 |
 | 投票 | 卡牌/Issue/评论，(user, target) 唯一约束，后端校验，点击切换 |
@@ -103,7 +103,7 @@ cloudflared service install
 
 ```
 id → game_id    name → 名称    type → unit/order    unit_class → 兵种
-cost_g → 经济 G  cost_k → 指挥点 K  attack/defense → 攻/防
+cost_g → 经济 G  cost_z → 战争点 Z（部署）  attack/defense → 攻/防
 vision_range/attack_range → 视野/射程（枚举文案同 game-mechanics.md）
 abilities → 词条（支持等级如 "坚守2"）  rarity → common/silver/gold（铜/银/金）
 art → 卡面图    flavor_text → 风味文字

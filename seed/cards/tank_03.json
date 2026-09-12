@@ -5,7 +5,7 @@
   "type": "unit",
   "unit_class": "tank",
   "cost_g": 70,
-  "cost_k": 2,
+  "cost_z": 2,
   "attack": 6,
   "defense": 3,
   "vision_range": "adjacent_8_forward",

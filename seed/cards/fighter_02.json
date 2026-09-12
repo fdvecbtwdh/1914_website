@@ -5,7 +5,7 @@
   "type": "unit",
   "unit_class": "fighter",
   "cost_g": 40,
-  "cost_k": 1,
+  "cost_z": 1,
   "attack": 2,
   "defense": 1,
   "vision_range": "front_3x2",

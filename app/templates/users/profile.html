@@ -36,7 +36,7 @@
           <a class="row-title" href="/card/{{ card.id }}">{{ card.name }}</a>
           <div class="row-sub">
             {{ unit_classes.get(card.unit_class, card.unit_class or '—') }} · {{ rarities.get(card.rarity, card.rarity) }}卡
-            · ⚙{{ card.cost_g }} ✦{{ card.cost_k }} · 攻{{ card.attack }}/防{{ card.defense }}
+            · ⚙{{ card.cost_g }} ✦{{ card.cost_z }} · 攻{{ card.attack }}/防{{ card.defense }}
             {% if card.source == 'official' %} · <span class="badge badge-brass">官方</span>{% endif %}
           </div>
         </div>

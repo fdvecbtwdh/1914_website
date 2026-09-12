@@ -90,7 +90,7 @@
           <span class="badge">{{ card.class_label }}</span>
         </div>
         <div class="row-sub">
-          ⚙{{ card.cost_g }} ✦{{ card.cost_k }} · 攻{{ card.attack }}/防{{ card.defense }}
+          ⚙{{ card.cost_g }} ✦{{ card.cost_z }} · 攻{{ card.attack }}/防{{ card.defense }}
           {% if card.abilities_list %} · <span style="color:var(--brass-bright)">{{ card.abilities_list|join('/') }}</span>{% endif %}
           {% if card.flavor_text %} · “{{ card.flavor_text }}”{% endif %}
         </div>

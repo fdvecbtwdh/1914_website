@@ -211,6 +211,8 @@ PORT=8000
 不填则该功能静默关闭，站点一切正常。
 Issue 按所属分流：**游戏本体 Issue → `GITHUB_REPO`（默认 1914）**，
 **网页 Issue → `GITHUB_WEB_REPO`（默认 1914_website）**，两个仓库共用同一 Token。
+服务器无法直连 GitHub 时，在 `.env` 设
+`GITHUB_PROXY=http://127.0.0.1:7890`（Clash 的混合端口），同步流量自动走代理。
 
 **5.5 邮件（可选；账户恢复用）**：启用玩家"忘记密码 → 邮箱找回"，在 `.env` 填：
 

@@ -78,7 +78,7 @@ def _validate_card_form(form) -> tuple[dict, str | None]:
         "rarity": form.get("rarity") if form.get("rarity") in RARITIES else "common",
         "card_tag": form.get("card_tag") if form.get("card_tag") in CARD_TAGS else DEFAULT_CARD_TAG,
         "cost_g": _int("cost_g", 0, 999),
-        "cost_k": _int("cost_k", 0, 99),
+        "cost_z": _int("cost_z", 0, 99),
         "attack": _int("attack", 0, 99),
         "defense": _int("defense", 0, 99),
         "vision_range": (form.get("vision_range") or "").strip()[:60],
@@ -238,12 +238,12 @@ def card_new():
                                        form_values=request.form), 400
             slug = _unique_slug(fields["name"])
             card_id = db.execute(
-                """INSERT INTO cards (slug, name, nation, type, unit_class, cost_g, cost_k, attack,
+                """INSERT INTO cards (slug, name, nation, type, unit_class, cost_g, cost_z, attack,
                    defense, vision_range, attack_range, abilities, rarity, art_path, flavor_text,
                    description, author_id, source, status, tag)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'visible',?)""",
                 (slug, fields["name"], fields["nation"], fields["type"], fields["unit_class"],
-                 fields["cost_g"], fields["cost_k"], fields["attack"], fields["defense"],
+                 fields["cost_g"], fields["cost_z"], fields["attack"], fields["defense"],
                  fields["vision_range"], fields["attack_range"], fields["abilities"],
                  fields["rarity"], art_url, fields["flavor_text"], fields["description"],
                  user["id"], source,
@@ -335,12 +335,12 @@ def card_edit(card_id: int):
                 fields["card_tag"] = ""
             slug = _unique_slug(fields["name"], exclude_id=card_id)
             db.execute(
-                """UPDATE cards SET slug=?, name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_k=?,
+                """UPDATE cards SET slug=?, name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_z=?,
                    attack=?, defense=?, vision_range=?, attack_range=?, abilities=?, rarity=?,
                    art_path=?, flavor_text=?, description=?, source=?, tag=?, updated_at=datetime('now')
                    WHERE id=?""",
                 (slug, fields["name"], fields["nation"], fields["type"], fields["unit_class"],
-                 fields["cost_g"], fields["cost_k"], fields["attack"], fields["defense"],
+                 fields["cost_g"], fields["cost_z"], fields["attack"], fields["defense"],
                  fields["vision_range"], fields["attack_range"], fields["abilities"],
                  fields["rarity"], art_url, fields["flavor_text"], fields["description"],
                  new_source, fields.get("card_tag", row["tag"]), card_id))

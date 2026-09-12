@@ -1,5 +1,5 @@
 {# 游戏卡面预览组件 — 完全对应游戏 data/cards JSON 字段。
-   参数: card (dict: name/type/unit_class/nation/cost_g/cost_k/attack/defense/
+   参数: card (dict: name/type/unit_class/nation/cost_g/cost_z/attack/defense/
          vision_range/attack_range/abilities_list/rarity/art_path/flavor_text)
          size: '' | 'sm' | 'lg'   link: 是否包链接 #}
 {% macro gcard(card, size='', link=True) -%}
@@ -17,7 +17,7 @@
     <div class="gcard-name">{{ card.name }}</div>
     <div class="gcard-costs">
       <span class="cost-chip cost-g" title="生产经济 G">⚙ {{ card.cost_g }}</span>
-      <span class="cost-chip cost-k" title="部署指挥点 K">✦ {{ card.cost_k }}</span>
+      <span class="cost-chip cost-k" title="部署战争点 Z">✦ {{ card.cost_z }}</span>
     </div>
   </div>
   <div class="gcard-art">

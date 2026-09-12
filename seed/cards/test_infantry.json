@@ -5,7 +5,7 @@
   "type": "unit",
   "unit_class": "infantry",
   "cost_g": 2,
-  "cost_k": 1,
+  "cost_z": 1,
   "attack": 2,
   "defense": 3,
   "vision_range": "adjacent_4",

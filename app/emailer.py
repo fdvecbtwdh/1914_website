@@ -38,7 +38,8 @@ def send_mail(to: str, subject: str, html_body: str) -> bool:
             if cfg.get("MAIL_USE_TLS") and not cfg.get("MAIL_USE_SSL"):
                 server.starttls(context=ssl_context())
                 server.ehlo()
-            if cfg.get("MAIL_USER"):
+            # 仅在同时提供账号与密码时登录；中继服务器无 AUTH 时跳过
+            if cfg.get("MAIL_USER") and cfg.get("MAIL_PASSWORD"):
                 server.login(cfg["MAIL_USER"], cfg["MAIL_PASSWORD"])
             server.send_message(msg)
         return True

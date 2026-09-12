@@ -303,7 +303,7 @@ class TestSecurity(Base):
         r = self.client.post("/cards/new", data={
             "csrf_token": "t",
             "name": "图片卡", "type": "unit", "unit_class": "infantry",
-            "cost_g": "30", "cost_k": "1", "attack": "3", "defense": "4",
+            "cost_g": "30", "cost_z": "1", "attack": "3", "defense": "4",
             "art": (io.BytesIO(png_bytes()), "art.png"),
         }, content_type="multipart/form-data", follow_redirects=True)
         self.assertIn("投稿成功", r.get_data(as_text=True))
@@ -407,7 +407,7 @@ class TestCards(Base):
         h = self.csrf_hdr()
         r = self.client.post("/cards/new", headers=h, data={
             "name": " test 卡 ", "type": "unit", "unit_class": "tank",
-            "cost_g": "65", "cost_k": "2", "attack": "5", "defense": "5",
+            "cost_g": "65", "cost_z": "2", "attack": "5", "defense": "5",
             "rarity": "gold", "nation": "neutral",
             "vision_range": "adjacent_8", "attack_range": "adjacent_8",
             "abilities": ["坚守", "突击"], "ability_level_坚守": "2",
@@ -425,7 +425,7 @@ class TestCards(Base):
         # 编辑
         r = self.client.post(f"/card/{row['id']}/edit", headers=h, data={
             "name": " test 卡 ", "type": "unit", "unit_class": "tank",
-            "cost_g": "70", "cost_k": "2", "attack": "6", "defense": "5",
+            "cost_g": "70", "cost_z": "2", "attack": "6", "defense": "5",
             "rarity": "gold", "nation": "neutral", "flavor_text": "改了",
             "abilities": [], "description": "x", "tags": "",
         }, content_type="multipart/form-data", follow_redirects=True)
@@ -1002,7 +1002,7 @@ class TestGameCardSync(Base):
             row = db.query("SELECT * FROM cards WHERE game_id='tank_02'", one=True)
             self.assertEqual(row["name"], game["name"])
             self.assertEqual(row["cost_g"], game["cost_g"])
-            self.assertEqual(row["cost_k"], game["cost_k"])
+            self.assertEqual(row["cost_z"], game["cost_z"])
             self.assertEqual(row["attack"], game["attack"])
             self.assertEqual(row["defense"], game["defense"])
             self.assertEqual(json.loads(row["abilities"]), game["abilities"])
@@ -1219,8 +1219,11 @@ class TestAccountRecovery(Base):
         self._port = self._srv.getsockname()[1]
         self._srv.listen(1)
         threading.Thread(target=self._smtp_sink, daemon=True).start()
+        # 隔离：测试只连本地收件池，清空真实凭据避免误发/误登录
         self.app.config["MAIL_HOST"] = "127.0.0.1"
         self.app.config["MAIL_PORT"] = self._port
+        self.app.config["MAIL_USER"] = ""
+        self.app.config["MAIL_PASSWORD"] = ""
         self.app.config["MAIL_USE_TLS"] = False
         self.app.config["MAIL_FROM"] = "noreply@1914.fun"
 
@@ -1604,6 +1607,82 @@ class TestMessages(Base):
         html = self.client.get("/messages").get_data(as_text=True)
         self.assertIn("该内容已被删除", html)
         self.assertNotIn('href="/card/%d"' % cid, html)
+
+
+class TestGithubProxy(Base):
+    """GitHub 同步走代理：配置透传 + 断连代理时任务失败重试。"""
+
+    def _queue_issue(self, component="game"):
+        self.logout()
+        self.register("syncuser", "Passw0rd123")
+        self.app.config["GITHUB_TOKEN"] = "test-token"
+        h = self.csrf_hdr()
+        r = self.client.post("/issues/new", headers=h, data={
+            "title": "代理分流测试的标题", "body": "x", "component": component},
+            follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+
+    def test_proxy_config_plumbing(self):
+        """GITHUB_PROXY 配置透传到 GitHub 请求层（monkeypatch 捕获）。"""
+        self.logout()
+        self.register("proxyuser", "Passw0rd123")
+        self.app.config["GITHUB_TOKEN"] = "test-token"
+        self.app.config["GITHUB_PROXY"] = "http://127.0.0.1:7890"
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "代理透传的标题", "body": "x"}, follow_redirects=True)
+        from app import github_sync
+        captured = {}
+        real_req = github_sync._gh_request
+        def fake(method, url, token, payload=None, proxy=""):
+            captured["proxy"] = proxy
+            captured["url"] = url
+            raise RuntimeError("stop")
+        github_sync._gh_request = fake
+        try:
+            with self.app.app_context():
+                github_sync.process_queue(self.app)
+        except RuntimeError:
+            pass
+        finally:
+            github_sync._gh_request = real_req
+        self.assertEqual(captured.get("proxy"), "http://127.0.0.1:7890")
+        self.assertIn("/repos/fdvecbtwdh/1914/issues", captured.get("url", ""))
+
+    def test_sync_without_proxy_direct(self):
+        """未配置代理：proxy 参数为空（直连），队列任务正常处理。"""
+        self.logout()
+        self.register("directuser", "Passw0rd123")
+        self.app.config["GITHUB_TOKEN"] = "test-token"
+        self.app.config["GITHUB_PROXY"] = ""
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "直连测试的标题", "body": "x"}, follow_redirects=True)
+        from app import github_sync
+        captured = {}
+        real_req = github_sync._gh_request
+        def fake(method, url, token, payload=None, proxy=""):
+            captured["proxy"] = proxy
+            raise RuntimeError("stop")
+        github_sync._gh_request = fake
+        try:
+            with self.app.app_context():
+                github_sync.process_queue(self.app)
+        except RuntimeError:
+            pass
+        finally:
+            github_sync._gh_request = real_req
+        self.assertEqual(captured.get("proxy"), "")
+
+    def test_component_filter_admin(self):
+        self.logout()
+        self.register("fuser", "Passw0rd123")
+        self.logout()
+        admin_u, admin_p = self.make_admin()
+        self.login(admin_u, admin_p)
+        for path in ("/admin/issues?status=all&component=web", "/admin/users?role=user"):
+            r = self.client.get(path)
+            self.assertEqual(r.status_code, 200, path)
 
 
 if __name__ == "__main__":

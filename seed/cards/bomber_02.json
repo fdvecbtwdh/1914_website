@@ -5,7 +5,7 @@
   "type": "unit",
   "unit_class": "bomber",
   "cost_g": 80,
-  "cost_k": 3,
+  "cost_z": 3,
   "attack": 8,
   "defense": 2,
   "vision_range": "front_3x2",

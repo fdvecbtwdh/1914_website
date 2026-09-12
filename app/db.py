@@ -101,6 +101,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # 存量卡牌：名字/ID 带测试标记的归为测试卡
         conn.execute("UPDATE cards SET tag='测试' "
                      "WHERE lower(COALESCE(game_id,'')) LIKE '%test%' OR name LIKE '%测试%'")
+    ccols = [r[1] for r in conn.execute("PRAGMA table_info(cards)")]
+    if "cost_k" in ccols and "cost_z" not in ccols:
+        # 游戏设计变更：部署消耗改为战争点 Z
+        conn.execute("ALTER TABLE cards RENAME COLUMN cost_k TO cost_z")
     icols = [r[1] for r in conn.execute("PRAGMA table_info(issues)")]
     if "component" not in icols:
         # Issue 所属：game=游戏本体 / web=网页（同步分流到对应仓库）

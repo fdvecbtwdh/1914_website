@@ -5,7 +5,7 @@
   "type": "unit",
   "unit_class": "artillery",
   "cost_g": 70,
-  "cost_k": 2,
+  "cost_z": 2,
   "attack": 7,
   "defense": 1,
   "vision_range": "front_3x3",

@@ -290,7 +290,7 @@
       if (!preview) return;
       preview.querySelector(".gcard-name").textContent = val("name") || "卡牌名称";
       preview.querySelector(".cost-g").innerHTML = "⚙ " + (val("cost_g") || "0");
-      preview.querySelector(".cost-k").innerHTML = "✦ " + (val("cost_k") || "0");
+      preview.querySelector(".cost-k").innerHTML = "✦ " + (val("cost_z") || "0");
       preview.querySelector(".stat-atk").textContent = val("attack") || "0";
       preview.querySelector(".stat-def").textContent = val("defense") || "0";
       const rangeEl = preview.querySelector(".gcard-range");

@@ -49,12 +49,21 @@ def _headers(token: str) -> dict:
     }
 
 
-def _gh_request(method: str, url: str, token: str, payload: dict | None = None) -> dict:
-    """urllib 版 GitHub API 调用（避免额外依赖）。4xx/5xx 抛 RuntimeError。"""
+def _gh_request(method: str, url: str, token: str, payload: dict | None = None,
+                proxy: str = "") -> dict:
+    """urllib 版 GitHub API 调用（避免额外依赖）。4xx/5xx 抛 RuntimeError。
+    proxy 形如 http://127.0.0.1:7890（Clash 等本地代理）；空 = 直连。
+    """
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(url, data=data, headers=_headers(token), method=method)
+    if proxy:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+        open_fn = opener.open
+    else:
+        open_fn = urllib.request.urlopen
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with open_fn(req, timeout=20) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body) if body else {}
     except urllib.error.HTTPError as e:
@@ -81,6 +90,7 @@ def _issue_payload(issue) -> dict:
 def process_queue(app) -> None:
     with app.app_context():
         token = app.config["GITHUB_TOKEN"]
+        proxy = app.config.get("GITHUB_PROXY", "")
         if not token:
             return
         tasks = db.query(
@@ -102,7 +112,7 @@ def process_queue(app) -> None:
                 task_repo = task["repo"] or repo
                 if task["action"] == "create":
                     data = _gh_request("POST", f"{API}/repos/{task_repo}/issues", token,
-                                       _issue_payload(issue))
+                                           _issue_payload(issue), proxy=proxy)
                     db.execute(
                         "UPDATE issues SET github_number = ?, github_url = ?, "
                         "github_synced_at = datetime('now') WHERE id = ?",
@@ -119,10 +129,10 @@ def process_queue(app) -> None:
                         gh_number = data.get("number")
                     elif task["action"] == "update":
                         _gh_request("PATCH", f"{API}/repos/{task_repo}/issues/{gh_number}", token,
-                                    _issue_payload(issue))
+                                    _issue_payload(issue), proxy=proxy)
                     elif task["action"] in ("close", "reopen"):
                         _gh_request("PATCH", f"{API}/repos/{task_repo}/issues/{gh_number}", token,
-                                    {"state": "closed" if task["action"] == "close" else "open"})
+                                    {"state": "closed" if task["action"] == "close" else "open"}, proxy=proxy)
                 db.execute("UPDATE sync_queue SET status='done', finished_at=datetime('now') "
                            "WHERE id = ?", (task["id"],))
             except Exception as e:

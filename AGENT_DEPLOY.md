@@ -41,6 +41,7 @@ Copy `.env.example` → `.env`. Required mutations:
 - `COOKIE_SECURE=1` (must be 1 behind HTTPS; set 0 only for plain-http local debug)
 - ensure lines exist: `HOST=127.0.0.1`, `PORT=8000`
 - optional: `GITHUB_WEB_REPO` = repo for web-issue sync (default `fdvecbtwdh/1914_website`)
+- optional: `GITHUB_PROXY` = local proxy URL (e.g. Clash `http://127.0.0.1:7890`) for GitHub sync when GitHub is unreachable directly
 - optional mail block (enables "forgot password" email recovery; unset = disabled):
   `MAIL_HOST` / `MAIL_PORT` (587 STARTTLS default, `MAIL_USE_SSL=1` for 465 SSL) /
   `MAIL_USER` / `MAIL_PASSWORD` / `MAIL_FROM` (must be a verified sender at the provider) /

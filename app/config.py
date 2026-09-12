@@ -55,6 +55,8 @@ class Config:
     GITHUB_REPO_URL = os.environ.get("GITHUB_REPO_URL", "https://github.com/fdvecbtwdh/1914")
     # 网页 Issue 同步目标仓库（与游戏仓库共用 GITHUB_TOKEN）
     GITHUB_WEB_REPO = os.environ.get("GITHUB_WEB_REPO", "fdvecbtwdh/1914_website")
+    # 无法直连 GitHub 时，同步流量走此代理（如 Clash：http://127.0.0.1:7890）；留空 = 直连
+    GITHUB_PROXY = os.environ.get("GITHUB_PROXY", "")
     # 网站自身的源码仓库（页脚展示）
     SITE_REPO_URL = os.environ.get("SITE_REPO_URL", "https://github.com/fdvecbtwdh/1914_website")
 

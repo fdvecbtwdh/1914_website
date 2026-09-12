@@ -11,7 +11,7 @@ from flask import current_app
 from . import db
 
 ALLOWED_FIELDS = {
-    "id", "name", "nation", "type", "unit_class", "cost_g", "cost_k",
+    "id", "name", "nation", "type", "unit_class", "cost_g", "cost_z",
     "attack", "defense", "vision_range", "attack_range", "abilities",
     "rarity", "art", "flavor_text",
 }
@@ -85,12 +85,12 @@ def import_official_cards(game_path: str | None = None) -> dict:
         tag = "测试" if ("test" in gid.lower() or "测试" in name) else "正式"
         if existing:
             db.execute(
-                """UPDATE cards SET name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_k=?,
+                """UPDATE cards SET name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_z=?,
                    attack=?, defense=?, vision_range=?, attack_range=?, abilities=?, rarity=?,
                    flavor_text=?, tag=?, updated_at=datetime('now') WHERE id=?""",
                 (name, data.get("nation") or "neutral", data.get("type") or "unit",
                  data.get("unit_class") or "", int(data.get("cost_g") or 0),
-                 int(data.get("cost_k") or 0), int(data.get("attack") or 0),
+                 int(data.get("cost_z") or 0), int(data.get("attack") or 0),
                  int(data.get("defense") or 0), data.get("vision_range") or "",
                  data.get("attack_range") or "", json.dumps(abilities, ensure_ascii=False),
                  data.get("rarity") or "common", data.get("flavor_text") or "",
@@ -104,13 +104,13 @@ def import_official_cards(game_path: str | None = None) -> dict:
                 n += 1
                 slug = f"{base}-{n}"
             db.execute(
-                """INSERT INTO cards (game_id, slug, name, nation, type, unit_class, cost_g, cost_k,
+                """INSERT INTO cards (game_id, slug, name, nation, type, unit_class, cost_g, cost_z,
                    attack, defense, vision_range, attack_range, abilities, rarity, flavor_text,
                    description, author_id, source, status, tag)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,'official','visible',?)""",
                 (gid, slug, name, data.get("nation") or "neutral", data.get("type") or "unit",
                  data.get("unit_class") or "", int(data.get("cost_g") or 0),
-                 int(data.get("cost_k") or 0), int(data.get("attack") or 0),
+                 int(data.get("cost_z") or 0), int(data.get("attack") or 0),
                  int(data.get("defense") or 0), data.get("vision_range") or "",
                  data.get("attack_range") or "", json.dumps(abilities, ensure_ascii=False),
                  data.get("rarity") or "common", data.get("flavor_text") or "",
