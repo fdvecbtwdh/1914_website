@@ -212,6 +212,20 @@ PORT=8000
 Issue 按所属分流：**游戏本体 Issue → `GITHUB_REPO`（默认 1914）**，
 **网页 Issue → `GITHUB_WEB_REPO`（默认 1914_website）**，两个仓库共用同一 Token。
 
+**5.5 邮件（可选；账户恢复用）**：启用玩家"忘记密码 → 邮箱找回"，在 `.env` 填：
+
+```ini
+MAIL_HOST=smtp-relay.brevo.com     # 或 smtp.qq.com / smtp.163.com
+MAIL_PORT=587                      # 465 端口改用 MAIL_USE_SSL=1
+MAIL_USER=你的登录名
+MAIL_PASSWORD=授权码或应用密码       # QQ/163 是授权码，不是邮箱登录密码
+MAIL_FROM=已验证的发件邮箱
+MAIL_USE_TLS=1
+```
+
+- `MAIL_FROM` 必须是邮件服务商验证过的发件地址
+- 不配置 `MAIL_HOST` 则邮箱恢复自动停用，玩家仍可用安全问题找回
+
 ---
 
 ## 6. 初始化数据库与管理员
