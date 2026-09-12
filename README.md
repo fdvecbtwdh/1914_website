@@ -14,6 +14,10 @@
 | 账号系统 | 注册（用户名+密码，邮箱选填）、Argon2 密码哈希、数据库会话（HttpOnly/Secure/SameSite cookie）、CSRF 防护、登录限速防爆破、角色 user/moderator/admin |
 | 卡牌社区 | 官方卡牌从游戏项目 JSON 自动导入；玩家投稿、编辑、隐藏/删除；最新/热门/评论最多排序；按类型/兵种/稀有度/标签筛选；搜索 |
 | 卡牌预览 | 网站卡面完全使用游戏真实字段（名称/兵种/经济 G/战争点 Z/攻防/视野/射程/词条/稀有度/风味文字），铜银金边框 |
+| 站内消息 | 顶栏消息按钮 + 未读角标（时间点机制，无逐条已读）；覆盖评论/回复/点赞互动 |
+| 账户恢复 | 邮箱（SMTP）+ 安全问题双通道；注册时可选填写，令牌一次性带有效期 |
+| Issue 增强 | 所属（游戏本体/网页）+ 预设标签勾选；同步按所属分流到 1914 / 1914_website |
+| 卡牌性质 | 官方卡分 正式/测试（导入自动判定，测试卡不代表正式卡牌）|
 | Bug/Issue | 类 GitHub Issues：Open / In Progress / Resolved / Closed / Duplicate；优先级、标签、Markdown（消毒后渲染）、复现步骤 |
 | 评论 | 两层评论（评论+回复）、编辑、删除、举报、Markdown 消毒 |
 | 投票 | 卡牌/Issue/评论，(user, target) 唯一约束，后端校验，点击切换 |
@@ -121,7 +125,7 @@ art → 卡面图    flavor_text → 风味文字
 ## 测试
 
 ```powershell
-.venv\Scripts\python -m unittest tests.test_site -v   # 42 项断言：账号/安全/投票/评论/Issue/导入/后台
+.venv\Scripts\python -m unittest tests.test_site -v   # 87 项断言：账号/安全/投票/评论/Issue/导入/后台/消息/恢复
 ```
 
 ## 目录结构
@@ -150,7 +154,7 @@ app/
 └── static/            WW1 军事风格 CSS / JS / 字体
 data/                  数据库 + 上传文件（gitignore）
 seed/cards/            游戏 JSON 内置副本（导入回退源）
-tests/test_site.py     42 项自动化测试
+tests/test_site.py     87 项自动化测试
 manage.py              init-db / import-cards / create-admin / create-labels / stats
 wsgi.py / run.py       生产入口(waitress) / 开发入口
 scripts/*.ps1          安装 / 初始化 / 启动脚本

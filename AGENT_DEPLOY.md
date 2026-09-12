@@ -46,6 +46,13 @@ Copy `.env.example` → `.env`. Required mutations:
   `MAIL_HOST` / `MAIL_PORT` (587 STARTTLS default, `MAIL_USE_SSL=1` for 465 SSL) /
   `MAIL_USER` / `MAIL_PASSWORD` / `MAIL_FROM` (must be a verified sender at the provider) /
   `MAIL_USE_TLS=1` / `RECOVER_TOKEN_MINUTES=30`
+- optional: `DB_TEMPLATE_PATH` — override reset-template location
+  (`manage.py save-default` writes `data\default.db` next to the DB)
+- optional: `STATUS_SAMPLER_ENABLED=0` — disable the /status metrics sampler thread
+- optional mail block (enables "forgot password" email recovery; unset = disabled):
+  `MAIL_HOST` / `MAIL_PORT` (587 STARTTLS default, `MAIL_USE_SSL=1` for 465 SSL) /
+  `MAIL_USER` / `MAIL_PASSWORD` / `MAIL_FROM` (must be a verified sender at the provider) /
+  `MAIL_USE_TLS=1` / `RECOVER_TOKEN_MINUTES=30`
 - optional: `DB_TEMPLATE_PATH` — override location of the reset template
   (`manage.py save-default` writes `data\default.db` next to the DB)
 - optional: `STATUS_SAMPLER_ENABLED=0` — disable the /status metrics sampler thread
@@ -105,7 +112,7 @@ cloudflared service install <TOKEN>
 ## tests
 
 ```powershell
-.\.venv\Scripts\python -m unittest tests.test_site   # expect: OK (54 tests)
+.\.venv\Scripts\python -m unittest tests.test_site   # expect: OK (87 tests)
 ```
 
 ## update
