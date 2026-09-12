@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import role_badge %}
 {% block title %}#{{ issue.id }} {{ issue.title }} — {{ site_name }} Issues{% endblock %}
 {% block meta_description %}{{ issue.body|excerpt(150) }}{% endblock %}
 {% block og_type %}article{% endblock %}
@@ -17,7 +18,7 @@
       <h1 style="margin:0;font-size:1.5rem">{{ issue.title }}</h1>
       <p style="color:var(--muted);margin:6px 0 0">
         <span class="issue-id">#{{ issue.id }}</span> ·
-        <a href="/u/{{ issue.author_name or '?' }}">{{ issue.author_name or '已注销' }}</a>
+        <a href="/u/{{ issue.author_name or '?' }}">{{ issue.author_name or '已注销' }}</a>{{ role_badge(issue.author_role) }}
         于 {{ issue.created_at|dt }} 提交 · 最后更新 {{ issue.updated_at|ago }}
         {% if issue.github_url %} · <a href="{{ issue.github_url }}" target="_blank" rel="noopener">GitHub #{{ issue.github_number }} ↗</a>{% endif %}
         · <button class="report-btn" data-type="issue" data-id="{{ issue.id }}" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">举报</button>

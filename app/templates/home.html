@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_gcard.html" import gcard with context %}
+{% from "_macros.html" import role_badge %}
 {% block title %}{{ site_name }} — WW1 卡牌对战游戏 · 官方网站{% endblock %}
 
 {% block content %}
@@ -56,7 +57,7 @@
         {{ {('open'):'Open','in_progress':'In Progress'}.get(issue.status, issue.status) }}</span>
       <div class="grow">
         <a class="issue-title" href="/issue/{{ issue.id }}">{{ issue.title }}</a>
-        <div class="issue-meta">#{{ issue.id }} · {{ issue.created_at|ago }} 由 {{ issue.author_name or '?' }} 提交</div>
+        <div class="issue-meta">#{{ issue.id }} · {{ issue.created_at|ago }} 由 {{ issue.author_name or '?' }}{{ role_badge(issue.author_role) }} 提交</div>
       </div>
     </div>
     {% else %}

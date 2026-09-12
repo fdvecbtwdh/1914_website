@@ -115,14 +115,23 @@ def add_comment(user_id: int, target_type: str, target_id: int,
         raise ValueError("评论内容不能为空")
     if not _target_exists(target_type, target_id):
         raise LookupError("目标不存在")
+    reply_to = None  # 被回复的评论；若它本身是子回复，正文加 @作者 前缀
+    mention = False  # 回复的是子回复 → 通知归入"被@"（comment_mention）
     if parent_id is not None:
-        parent = db.query(
-            "SELECT id, target_type, target_id, parent_id FROM comments WHERE id = ? AND is_deleted = 0",
+        reply_to = db.query(
+            """SELECT c.id, c.target_type, c.target_id, c.parent_id, c.author_id, u.username
+               FROM comments c LEFT JOIN users u ON u.id = c.author_id
+               WHERE c.id = ? AND c.is_deleted = 0""",
             (parent_id,), one=True)
-        if parent is None or parent["target_type"] != target_type or parent["target_id"] != target_id:
+        if reply_to is None or reply_to["target_type"] != target_type \
+                or reply_to["target_id"] != target_id:
             raise LookupError("回复的评论不存在")
-        if parent["parent_id"] is not None:
-            parent_id = parent["parent_id"]  # 只支持两层：回复一律挂到顶级评论
+        if reply_to["parent_id"] is not None:
+            # 两层 DOM：仍挂到顶级评论，用 @用户名 前缀标明在回复谁
+            mention = True
+            parent_id = reply_to["parent_id"]
+            if reply_to["username"]:
+                body = f"@{reply_to['username']} " + body.strip()
     body = body.strip()
     cid = db.execute(
         "INSERT INTO comments (target_type, target_id, author_id, parent_id, body, body_html) "
@@ -143,11 +152,13 @@ def add_comment(user_id: int, target_type: str, target_id: int,
         if issue and issue["author_id"] and issue["author_id"] != user_id and not parent_id:
             notify(issue["author_id"], user_id, "issue_comment", issue_id=target_id,
                    comment_id=cid)
-    if parent_id:
-        parent = db.query("SELECT author_id FROM comments WHERE id = ?", (parent_id,), one=True)
-        if parent and parent["author_id"] and parent["author_id"] != user_id:
-            notify(parent["author_id"], user_id, "comment_reply", card_id=target_id,
-                   comment_id=cid)
+    # 通知被回复评论的作者（回复子回复时是子回复作者，而非顶级评论作者）
+    if reply_to and reply_to["author_id"] and reply_to["author_id"] != user_id:
+        notify(reply_to["author_id"], user_id,
+               "comment_mention" if mention else "comment_reply",
+               card_id=target_id if target_type == "card" else None,
+               issue_id=target_id if target_type == "issue" else None,
+               comment_id=cid)
     return cid
 
 

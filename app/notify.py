@@ -1,7 +1,8 @@
 """站内消息核心 — 通知创建（去重）、未读计数、查看位置标记。
 消息类型（type）设计为可扩展：
   card_comment  有人评论了你的卡牌
-  comment_reply 有人回复了你的评论
+  comment_reply 有人回复了你的评论（直接回复）
+  comment_mention 回复中 @ 提到了你（回复子回复）
   card_vote     有人点赞了你的卡牌
   issue_comment 有人评论了你的 Issue
   issue_vote    有人点赞了你的 Issue

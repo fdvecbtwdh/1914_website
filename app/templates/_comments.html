@@ -1,5 +1,6 @@
 {# 共享评论区 — 卡牌 & Issue 详情页复用
    参数: target_type ('card'|'issue'), target_id, comments (两层结构) #}
+{% from "_macros.html" import role_badge %}
 <div id="comments">
   <h2 style="color:var(--brass-bright)">评论 (<span id="comment-count">{{ comments|length }}</span>)</h2>
 
@@ -12,6 +13,7 @@
       <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
         <button class="btn btn-primary btn-sm" type="submit">发表评论</button>
         <button class="btn btn-sm" type="button" id="cancel-reply" style="display:none">取消回复</button>
+        <span id="replying-to" class="md-hint" style="display:none"></span>
         <span class="md-hint">支持 **粗体**、*斜体*、`代码`、> 引用</span>
       </div>
     </form>
@@ -25,7 +27,7 @@
     <div id="comment-{{ c.id }}" data-comment-root="{{ c.id }}" class="comment">
       <div class="comment-head">
         <a class="author" href="/u/{{ c.username or '?' }}">{{ c.username or '已注销' }}</a>
-        {% if c.author_role in ('admin', 'moderator') %}<span class="badge badge-olive">{{ '管理员' if c.author_role == 'admin' else '版主' }}</span>{% endif %}
+        {{ role_badge(c.author_role) }}
         <span>{{ c.created_at|ago }}{% if c.edited_at %} · 已编辑{% endif %}</span>
       </div>
       <div class="comment-body md-body">{{ c.body_html|safe if not c.is_deleted else '（已删除）' }}</div>
@@ -50,12 +52,13 @@
         <div id="comment-{{ r.id }}" data-comment-root="{{ r.id }}" class="comment">
           <div class="comment-head">
             <a class="author" href="/u/{{ r.username or '?' }}">{{ r.username or '已注销' }}</a>
-            {% if r.author_role in ('admin', 'moderator') %}<span class="badge badge-olive">{{ '管理员' if r.author_role == 'admin' else '版主' }}</span>{% endif %}
+            {{ role_badge(r.author_role) }}
             <span>{{ r.created_at|ago }}{% if r.edited_at %} · 已编辑{% endif %}</span>
           </div>
           <div class="comment-body md-body">{{ r.body_html|safe if not r.is_deleted else '（已删除）' }}</div>
           {% if not r.is_deleted %}
           <div class="comment-actions">
+            {% if current_user %}<a href="#comments" class="comment-reply" data-id="{{ r.id }}" data-mention="{{ r.username or '' }}">回复</a>{% endif %}
             {% if current_user and current_user['id'] == r.author_id %}
               <button class="comment-edit" data-id="{{ r.id }}" data-raw="{{ r.body }}">编辑</button>
             {% endif %}
@@ -67,6 +70,7 @@
             {% endif %}
           </div>
           {% endif %}
+          <div class="comment-form-slot"></div>
         </div>
         {% endfor %}
       </div>

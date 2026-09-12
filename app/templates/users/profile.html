@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_gcard.html" import gcard with context %}
+{% from "_macros.html" import role_badge %}
 {% block title %}{{ user.username }} — {{ site_name }} 指挥官档案{% endblock %}
 {% block meta_description %}{{ user.username }} 的公开主页：卡牌投稿、Issue 反馈与社区活动。{% endblock %}
 
@@ -7,8 +8,7 @@
 <div class="container">
   <div class="page-title">
     <h1>{{ user.username }}</h1>
-    {% if user.role == 'admin' %}<span class="badge badge-brass">管理员</span>
-    {% elif user.role == 'moderator' %}<span class="badge badge-olive">版主</span>{% endif %}
+    {{ role_badge(user.role) }}
     {% if user.is_banned %}<span class="badge badge-red">已封禁</span>{% endif %}
     <span class="sub">注册于 {{ user.created_at|dt }}（{{ user.created_at|ago }}）</span>
   </div>

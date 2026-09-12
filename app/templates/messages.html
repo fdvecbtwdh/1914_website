@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import role_badge %}
 {% block title %}消息 — {{ site_name }}{% endblock %}
 {% block content %}
 <div class="container" style="max-width:760px">
@@ -7,12 +8,19 @@
     <span class="sub">共 {{ total }} 条 · 按时间从新到旧</span>
   </div>
 
+  <div class="tab-row">
+    <a href="/messages" {% if not cat %}class="active"{% endif %}>全部 <span class="count">{{ counts[''] }}</span></a>
+    <a href="/messages?cat=mention" {% if cat == 'mention' %}class="active"{% endif %}>被@ <span class="count">{{ counts['mention'] }}</span></a>
+    <a href="/messages?cat=reply" {% if cat == 'reply' %}class="active"{% endif %}>被回复 <span class="count">{{ counts['reply'] }}</span></a>
+    <a href="/messages?cat=vote" {% if cat == 'vote' %}class="active"{% endif %}>被点赞 <span class="count">{{ counts['vote'] }}</span></a>
+  </div>
+
   <div class="msg-list">
     {% for n in items %}
     <div class="msg-row">
       {% if n.url %}
       <a class="msg-link" href="{{ n.url }}">
-        <span class="msg-text"><b>{{ n.actor_name or '已注销用户' }}</b> {{ n.text }}</span>
+        <span class="msg-text"><b>{{ n.actor_name or '已注销用户' }}</b>{{ role_badge(n.actor_role) }} {{ n.text }}</span>
         <span class="msg-time">{{ n.created_at|ago }}</span>
       </a>
       {% else %}
@@ -23,7 +31,7 @@
       {% endif %}
     </div>
     {% else %}
-    <div class="empty-state"><span class="icon">📭</span>还没有消息。</div>
+    <div class="empty-state"><span class="icon">📭</span>{% if cat %}这个分类下还没有消息。{% else %}还没有消息。{% endif %}</div>
     {% endfor %}
   </div>
 
@@ -31,7 +39,7 @@
   <div class="pagination">
     {% for p in range(1, pages + 1) %}
       {% if p == page %}<span class="current">{{ p }}</span>
-      {% else %}<a href="/messages?page={{ p }}">{{ p }}</a>{% endif %}
+      {% else %}<a href="/messages?{{ qs }}page={{ p }}">{{ p }}</a>{% endif %}
     {% endfor %}
   </div>
   {% endif %}

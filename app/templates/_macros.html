@@ -1,0 +1,8 @@
+{# 共享宏 — 各模板 import 复用 #}
+
+{# 用户身份徽章：管理员(金) / 版主(橄榄)；普通用户与已注销返回空 #}
+{% macro role_badge(role) -%}
+{%- if role == 'admin' -%}<span class="badge badge-brass" title="管理员">管理员</span>
+{%- elif role == 'moderator' -%}<span class="badge badge-olive" title="版主">版主</span>
+{%- endif -%}
+{%- endmacro %}

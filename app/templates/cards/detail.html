@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_gcard.html" import gcard with context %}
+{% from "_macros.html" import role_badge %}
 {% block title %}{{ card.name }} — 1914 卡牌详情{% endblock %}
 {% block meta_description %}{{ card.name }}（{{ card.class_label }} · {{ card.rarity_label }}卡）：{{ card.flavor_text or card.description|excerpt(120) }}{% endblock %}
 {% block og_type %}article{% endblock %}
@@ -44,7 +45,7 @@
     <div>
       <h1 style="margin:0 0 4px">{{ card.name }}</h1>
       <p style="color:var(--muted);margin:0 0 18px">
-        {% if card.author_name %}投稿者 <a href="/u/{{ card.author_name }}">{{ card.author_name }}</a> · {% endif %}
+        {% if card.author_name %}投稿者 <a href="/u/{{ card.author_name }}">{{ card.author_name }}</a>{{ role_badge(card.author_role) }} · {% endif %}
         发布于 {{ card.created_at|ago }}
         {% if card.game_id %} · 游戏ID <span class="mono">{{ card.game_id }}</span>{% endif %}
       </p>

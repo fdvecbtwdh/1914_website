@@ -15,7 +15,7 @@ OPEN_LIKE_STATUSES = ("open", "in_progress")
 
 def _issue_or_404(issue_id: int):
     row = db.query(
-        """SELECT i.*, u.username AS author_name FROM issues i
+        """SELECT i.*, u.username AS author_name, u.role AS author_role FROM issues i
            LEFT JOIN users u ON u.id = i.author_id WHERE i.id = ?""", (issue_id,), one=True)
     if row is None:
         abort(404)

@@ -11,18 +11,38 @@ bp = Blueprint("messages", __name__, url_prefix="/messages")
 PAGE_SIZE = 20
 
 
+PAGE_SIZE = 20
+
+# 消息分类（页顶 tab）：被@ = 回复中提及你；被回复 = 直接回复你的评论；被点赞 = 收到的赞
+CATEGORIES = {
+    "mention": ("被@", ("comment_mention",)),
+    "reply": ("被回复", ("comment_reply",)),
+    "vote": ("被点赞", ("card_vote", "issue_vote")),
+}
+
+
 @bp.route("")
 def inbox():
     user = auth.current_user()
     if user is None:
         return redirect(url_for("auth.login", next="/messages"))
-    mark_viewed(user["id"])
+    mark_viewed(user["id"])  # 打开任意分类都视为已查看（时间点机制）
+    cat = request.args.get("cat", "")
+    if cat not in CATEGORIES:
+        cat = ""
     page = max(1, min(request.args.get("page", 1, type=int), 500))
-    total = db.query("SELECT COUNT(*) AS n FROM notifications WHERE recipient_id = ?",
-                     (user["id"],), one=True)["n"]
+
+    cond, args = "recipient_id = ?", [user["id"]]
+    if cat:
+        types = CATEGORIES[cat][1]
+        cond += f" AND type IN ({','.join('?' * len(types))})"
+        args += list(types)
+    total = db.query(f"SELECT COUNT(*) AS n FROM notifications WHERE {cond}",
+                     args, one=True)["n"]
+    # 联表后 type 与 cards.type 重名，需要 n. 前缀
     rows = db.query(
-        """SELECT n.id, n.type, n.card_id, n.issue_id, n.comment_id,
-                  n.created_at, a.username AS actor_name,
+        f"""SELECT n.id, n.type, n.card_id, n.issue_id, n.comment_id,
+                  n.created_at, a.username AS actor_name, a.role AS actor_role,
                   c.name AS card_name, i.title AS issue_title,
                   cm.is_deleted AS comment_deleted
            FROM notifications n
@@ -30,10 +50,10 @@ def inbox():
            LEFT JOIN cards c ON c.id = n.card_id
            LEFT JOIN issues i ON i.id = n.issue_id
            LEFT JOIN comments cm ON cm.id = n.comment_id
-           WHERE n.recipient_id = ?
+           WHERE n.{cond.replace(' AND type IN', ' AND n.type IN')}
            ORDER BY n.created_at DESC, n.id DESC
            LIMIT ? OFFSET ?""",
-        (user["id"], PAGE_SIZE, (page - 1) * PAGE_SIZE))
+        args + [PAGE_SIZE, (page - 1) * PAGE_SIZE])
     items = []
     for r in rows:
         d = dict(r)
@@ -51,7 +71,18 @@ def inbox():
             d["url"] = None
         items.append(d)
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-    return render_template("messages.html", items=items, total=total, page=page, pages=pages)
+    # 分类计数（tab 角标），一条 GROUP BY 搞定
+    by_type: dict = {}
+    for r in db.query(
+            "SELECT type, COUNT(*) AS n FROM notifications WHERE recipient_id = ? GROUP BY type",
+            (user["id"],)):
+        by_type[r["type"]] = r["n"]
+    counts = {"": sum(by_type.values())}
+    for key, (_, types) in CATEGORIES.items():
+        counts[key] = sum(by_type.get(t, 0) for t in types)
+    return render_template("messages.html", items=items, total=total, page=page,
+                           pages=pages, cat=cat,
+                           qs=f"cat={cat}&" if cat else "", counts=counts)
 
 
 def _text(d: dict) -> str:
@@ -59,8 +90,13 @@ def _text(d: dict) -> str:
     actor = d["actor_name"] or "已注销用户"
     if d["type"] == "card_comment":
         return f"{actor} 评论了你的卡牌" + (f"《{d['card_name']}》" if d["card_name"] else "（该内容已被删除）")
+    if d["type"] == "comment_mention":
+        ctx = d["card_name"] or d["issue_title"]
+        base = f"《{ctx}》" if ctx else ""
+        return f"{actor} 在回复中提到了你" + (f"（{base}）" if base else "")
     if d["type"] == "comment_reply":
-        base = f"《{d['card_name']}》" if d["card_name"] else ""
+        ctx = d["card_name"] or d["issue_title"]
+        base = f"《{ctx}》" if ctx else ""
         return f"{actor} 回复了你的评论" + (f"（{base}）" if base else "")
     if d["type"] == "card_vote":
         return f"{actor} 点赞了你的卡牌" + (f"《{d['card_name']}》" if d["card_name"] else "")

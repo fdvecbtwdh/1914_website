@@ -40,7 +40,7 @@ def decorate_card(row, with_meta: bool = False) -> dict:
 
 def _card_or_404(card_id: int) -> dict:
     row = db.query(
-        """SELECT c.*, u.username AS author_name FROM cards c
+        """SELECT c.*, u.username AS author_name, u.role AS author_role FROM cards c
            LEFT JOIN users u ON u.id = c.author_id WHERE c.id = ?""", (card_id,), one=True)
     if row is None:
         abort(404)

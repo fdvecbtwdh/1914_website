@@ -92,6 +92,7 @@
     if (replyBtn) {
       e.preventDefault();
       const cid = replyBtn.dataset.id;
+      const mention = replyBtn.dataset.mention || "";
       const form = document.querySelector("#comment-form");
       const box = document.querySelector('[data-comment-root="' + cid + '"] .comment-form-slot');
       if (box && form) {
@@ -99,6 +100,11 @@
         form.querySelector("textarea").focus();
         form.querySelector("input[name=parent_id]").value = cid;
         form.querySelector("#cancel-reply").style.display = "";
+        const hint = form.querySelector("#replying-to");
+        hint.textContent = mention ? "回复 @" + mention : "";
+        hint.style.display = mention ? "" : "none";
+        form.querySelector("textarea").placeholder =
+          mention ? "回复 @" + mention + "…" : "发表评论… 支持 Markdown";
       }
     }
     const cancelBtn = e.target.closest("#cancel-reply");
@@ -108,6 +114,10 @@
       document.querySelector("#comment-form-slot-main").appendChild(form);
       form.querySelector("input[name=parent_id]").value = "";
       cancelBtn.style.display = "none";
+      const hint = form.querySelector("#replying-to");
+      hint.textContent = "";
+      hint.style.display = "none";
+      form.querySelector("textarea").placeholder = "发表评论… 支持 Markdown";
     }
     const editBtn = e.target.closest(".comment-edit");
     if (editBtn) {

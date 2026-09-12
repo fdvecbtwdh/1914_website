@@ -32,7 +32,7 @@ def home():
            WHERE c.status = 'visible' ORDER BY vote_count DESC, c.created_at DESC LIMIT 4""")
     # 最新未完成 Issue
     latest_issues = db.query(
-        """SELECT i.*, u.username AS author_name FROM issues i
+        """SELECT i.*, u.username AS author_name, u.role AS author_role FROM issues i
            LEFT JOIN users u ON u.id = i.author_id
            WHERE i.status IN ('open','in_progress')
            ORDER BY i.created_at DESC LIMIT 5""")
@@ -75,7 +75,7 @@ def search():
                WHERE i.title LIKE ? OR i.body LIKE ?
                ORDER BY i.created_at DESC LIMIT 12""", (like, like))
         users_found = db.query(
-            """SELECT u.id, u.username, u.bio, u.created_at,
+            """SELECT u.id, u.username, u.role, u.bio, u.created_at,
                (SELECT COUNT(*) FROM cards c WHERE c.author_id = u.id AND c.status='visible') AS card_count
                FROM users u WHERE u.username LIKE ? AND u.is_banned = 0 LIMIT 10""", (like,))
     return render_template("search.html", q=q, cards=cards, issues=issues,

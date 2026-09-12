@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    type         TEXT NOT NULL,   -- card_comment / comment_reply / card_vote / issue_comment / issue_vote
+    type         TEXT NOT NULL,   -- card_comment / comment_reply / comment_mention / card_vote / issue_comment / issue_vote
     card_id      INTEGER,
     issue_id     INTEGER,
     comment_id   INTEGER,

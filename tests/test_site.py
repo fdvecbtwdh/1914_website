@@ -1433,6 +1433,63 @@ class TestAccountRecovery(Base):
         self.assertIn('name="security_answer"', html)
 
 
+class TestRoleBadges(Base):
+    """管理员/版主徽章：所有展示用户名的内容页名字旁可见，普通用户无徽章。"""
+
+    def test_admin_and_moderator_badges(self):
+        # mem（普通用户）先投稿一张卡
+        self.register("mem", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "mem的卡", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        card_id = self.sql("SELECT id FROM cards WHERE name='mem的卡'")[0]["id"]
+        # 管理员 chief：提交 Issue + 评论 mem 的卡
+        self.make_admin("chief", "Passw0rd123")
+        self.logout()
+        self.login("chief", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "chief 提交的 issue 标题", "body": "x"},
+                         follow_redirects=True)
+        self.client.post(f"/api/comment/card/{card_id}", headers=h,
+                         data={"body": "管理员路过"})
+        issue_id = self.sql("SELECT id FROM issues ORDER BY id DESC LIMIT 1")[0]["id"]
+        # 版主 mod：也评论 mem 的卡
+        with self.app.app_context():
+            db.execute(
+                "INSERT INTO users (username, password_hash, role) VALUES (?,?, 'moderator')",
+                ("mod", hash_password("Passw0rd123")))
+        self.logout()
+        self.login("mod", "Passw0rd123")
+        self.client.post(f"/api/comment/card/{card_id}", headers=self.csrf_hdr(),
+                         data={"body": "版主路过"})
+        # 卡牌详情：评论区里管理员(金)与版主(橄榄)徽章都在
+        card_page = self.client.get(f"/card/{card_id}").get_data(as_text=True)
+        self.assertIn('badge-brass" title="管理员"', card_page)
+        self.assertIn('badge-olive" title="版主"', card_page)
+        # Issue 详情：作者名旁有管理员徽章
+        issue_page = self.client.get(f"/issue/{issue_id}").get_data(as_text=True)
+        self.assertIn('chief</a><span class="badge badge-brass"', issue_page)
+        # 首页最新 Issue：提交人旁有徽章
+        home = self.client.get("/index").get_data(as_text=True)
+        self.assertIn('chief<span class="badge badge-brass"', home)
+        # 搜索用户：名字旁有徽章
+        found = self.client.get("/search?q=chief").get_data(as_text=True)
+        self.assertIn('chief</a><span class="badge badge-brass"', found)
+        # mem 的消息页：操作人 chief 旁有徽章
+        self.logout()
+        self.login("mem", "Passw0rd123")
+        msgs = self.client.get("/messages").get_data(as_text=True)
+        self.assertIn('<b>chief</b><span class="badge badge-brass"', msgs)
+        # 个人主页：chief 有徽章；普通用户 mem 没有
+        prof = self.client.get("/u/chief").get_data(as_text=True)
+        self.assertIn('badge-brass" title="管理员"', prof)
+        own = self.client.get("/u/mem").get_data(as_text=True)
+        self.assertNotIn('title="管理员"', own)
+        self.assertNotIn('title="版主"', own)
+
+
 class TestMessages(Base):
     """站内消息：生成、去重、角标时间点机制、分页、隐私、死链处理。"""
 
@@ -1518,6 +1575,111 @@ class TestMessages(Base):
         n_reply = self.sql("SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='comment_reply'",
                            (aid,))[0]["c"]
         self.assertEqual(n_reply, 1)
+
+    def test_reply_to_reply_flattened_with_mention(self):
+        """回复子回复：DOM 保持两层（挂到顶级评论），正文加 @用户名 前缀，
+        通知发给被回复的子回复作者；Issue 回复通知挂 issue_id 而非 card_id。"""
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h,
+                         data={"title": "嵌套回复测试的标题", "body": "x"}, follow_redirects=True)
+        self.logout()
+        self.register("topper", "Passw0rd123")
+        h = self.csrf_hdr()
+        top = self.client.post("/api/comment/issue/1", headers=h,
+                               data={"body": "顶级"}).get_json()["id"]
+        self.logout()
+        self.register("inner", "Passw0rd123")
+        h = self.csrf_hdr()
+        rep = self.client.post("/api/comment/issue/1", headers=h,
+                               data={"body": "子回复", "parent_id": top}).get_json()["id"]
+        # 第三人回复 inner 的子回复 → 仍挂到顶级评论，正文带 @inner 前缀
+        self.logout()
+        self.register("third", "Passw0rd123")
+        h = self.csrf_hdr()
+        r = self.client.post("/api/comment/issue/1", headers=h,
+                             data={"body": "再回复", "parent_id": rep})
+        self.assertEqual(r.status_code, 200)
+        row = self.sql("SELECT parent_id, body FROM comments WHERE id=?",
+                       (r.get_json()["id"],))[0]
+        self.assertEqual(row["parent_id"], top)
+        self.assertTrue(row["body"].startswith("@inner "))
+        self.assertIn("再回复", row["body"])
+        # inner（被回复的子回复作者）收到 comment_mention；topper 收到直接回复的 comment_reply
+        inner_id = self.sql("SELECT id FROM users WHERE username='inner'")[0]["id"]
+        topper_id = self.sql("SELECT id FROM users WHERE username='topper'")[0]["id"]
+        self.assertEqual(self.sql(
+            "SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='comment_mention'",
+            (inner_id,))[0]["c"], 1)
+        self.assertEqual(self.sql(
+            "SELECT COUNT(*) c FROM notifications WHERE recipient_id=? AND type='comment_reply'",
+            (topper_id,))[0]["c"], 1)
+        # Issue 的回复通知挂 issue_id（而非误挂 card_id），两类通知均如此
+        n = self.sql("SELECT issue_id, card_id FROM notifications WHERE type='comment_reply'")[0]
+        self.assertEqual(n["issue_id"], 1)
+        self.assertIsNone(n["card_id"])
+        m = self.sql("SELECT issue_id, card_id FROM notifications WHERE type='comment_mention'")[0]
+        self.assertEqual(m["issue_id"], 1)
+        self.assertIsNone(m["card_id"])
+        # 详情页子回复渲染出带 data-mention 的回复按钮
+        self.logout()
+        self.register("viewer", "Passw0rd123")
+        html = self.client.get("/issue/1").get_data(as_text=True)
+        self.assertIn('data-mention="inner"', html)
+
+    def test_messages_category_tabs(self):
+        """消息页顶部分类：被@（回复子回复）/被回复/被点赞 互不串扰，计数与筛选一致。"""
+        cid = self._make_card()
+        # author 在自己的卡下评论（自评不通知），供后续回复
+        self.login("author", "Passw0rd123")
+        self.set_csrf()
+        top = self.client.post(f"/api/comment/card/{cid}", headers=self.csrf_hdr(),
+                               data={"body": "author 的评论"}).get_json()["id"]
+        # viewer：评论（card_comment）+ 点赞（card_vote）+ 回复 author 的评论（comment_reply）
+        self.logout()
+        self.register("viewer", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post(f"/api/comment/card/{cid}", headers=h, data={"body": "观众评论"})
+        self.client.post(f"/api/vote/card/{cid}", headers=h)
+        rep = self.client.post(f"/api/comment/card/{cid}", headers=h,
+                               data={"body": "回复author", "parent_id": top}).get_json()["id"]
+        # viewer2 回复 viewer 的子回复 → viewer 收到 comment_mention
+        self.logout()
+        self.register("viewer2", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post(f"/api/comment/card/{cid}", headers=h,
+                         data={"body": "再回复", "parent_id": rep})
+
+        def page(cat, user):
+            self.logout()
+            self.login(user, "Passw0rd123")
+            url = f"/messages?cat={cat}" if cat else "/messages"
+            return self.client.get(url).get_data(as_text=True)
+
+        # 全部：作者三种都有，tab 计数正确（全部3 / 被@0 / 被回复1 / 被点赞1）
+        full = page("", "author")
+        self.assertIn("评论了你的卡牌", full)
+        self.assertIn("回复了你的评论", full)
+        self.assertIn("点赞了你的卡牌", full)
+        self.assertIn('全部 <span class="count">3</span>', full)
+        self.assertIn('被@ <span class="count">0</span>', full)
+        self.assertIn('被回复 <span class="count">1</span>', full)
+        self.assertIn('被点赞 <span class="count">1</span>', full)
+        # 被回复：只有直接回复，没有评论/点赞
+        rp = page("reply", "author")
+        self.assertIn("回复了你的评论", rp)
+        self.assertNotIn("评论了你的卡牌", rp)
+        self.assertNotIn("点赞了你的卡牌", rp)
+        # 被点赞：只有点赞
+        vp = page("vote", "author")
+        self.assertIn("点赞了你的卡牌", vp)
+        self.assertNotIn("回复了你的评论", vp)
+        # 被@：viewer 收到 viewer2 的提及；author 的被@分类为空
+        mp = page("mention", "viewer")
+        self.assertIn('被@ <span class="count">1</span>', mp)
+        self.assertIn("在回复中提到了你", mp)
+        self.assertNotIn("回复了你的评论", mp)
+        me = page("mention", "author")
+        self.assertIn("这个分类下还没有消息", me)
 
     def test_vote_dedup(self):
         cid = self._make_card()
