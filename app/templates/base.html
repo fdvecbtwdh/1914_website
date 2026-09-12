@@ -28,6 +28,7 @@
       <a href="/cards" {% if request.path.startswith('/card') %}class="active"{% endif %}>卡牌</a>
       <a href="/issues" {% if request.path.startswith('/issue') %}class="active"{% endif %}>Bug / Issues</a>
       <a href="/search" {% if request.path == '/search' %}class="active"{% endif %}>搜索</a>
+      <a href="/status" {% if request.path.startswith('/status') %}class="active"{% endif %}>状态</a>
     </nav>
     <div class="header-actions">
       {% if current_user %}
@@ -44,7 +45,6 @@
         <a class="btn btn-sm" href="/login">登录</a>
         <a class="btn btn-sm btn-brass" href="/register">注册</a>
       {% endif %}
-      <a class="btn btn-sm" href="/status">状态</a>
     </div>
     <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
   </div>
