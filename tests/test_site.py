@@ -925,40 +925,48 @@ class TestAdmin(Base):
         self.assertEqual(
             self.sql("SELECT COUNT(*) c FROM users WHERE username LIKE 'bdel%'")[0]["c"], 0)
 
-    def test_card_tag_select_filter_and_display(self):
-        """卡牌性质：投稿可选 测试/正式，徽章悬停/点击有说明，列表可筛选。"""
+    def test_card_tag_official_only(self):
+        """性质仅官方卡有：玩家自制卡无标记；管理员投官方卡可选测试/正式；列表可筛选。"""
+        # 玩家投稿：即使带 card_tag=测试 也无效 → 无性质
+        self.logout()
+        self.register("taguser", "Passw0rd123")
         h = self.csrf_hdr()
-        # 默认正式
         self.client.post("/cards/new", headers=h, data={
-            "name": "正式测试卡A", "type": "unit", "unit_class": "infantry"},
-            content_type="multipart/form-data")
-        # 投稿测试卡
+            "name": "自制卡X", "type": "unit", "unit_class": "infantry",
+            "card_tag": "测试"}, content_type="multipart/form-data")
+        self.assertEqual(self.sql("SELECT tag FROM cards WHERE name='自制卡X'")[0]["tag"], "")
+        # 详情页无性质徽章
+        cid = self.sql("SELECT id FROM cards WHERE name='自制卡X'")[0]["id"]
+        self.assertNotIn('data-tag="测试"', self.client.get(f"/card/{cid}").get_data(as_text=True))
+
+        # 管理员投官方测试卡
+        self.logout()
+        self.login(self.admin_user, self.admin_pass)
+        h = self.csrf_hdr()
         r = self.client.post("/cards/new", headers=h, data={
-            "name": "试验卡B", "type": "unit", "unit_class": "infantry",
-            "card_tag": "测试"}, content_type="multipart/form-data",
-            follow_redirects=True)
-        self.assertIn("投稿成功", r.get_data(as_text=True))
-        rows = {r2["name"]: r2["tag"] for r2 in self.sql(
-            "SELECT name, tag FROM cards WHERE name IN ('正式测试卡A','试验卡B')")}
-        self.assertEqual(rows, {"正式测试卡A": "正式", "试验卡B": "测试"})
-        # 非法值回退正式
-        self.client.post("/cards/new", headers=h, data={
-            "name": "非法tag卡", "type": "unit", "unit_class": "infantry",
-            "card_tag": "哈哈"}, content_type="multipart/form-data")
-        self.assertEqual(self.sql("SELECT tag FROM cards WHERE name='非法tag卡'")[0]["tag"],
-                         "正式")
-        # 详情页徽章 + 悬停说明
-        bid = self.sql("SELECT id FROM cards WHERE name='试验卡B'")[0]["id"]
-        html = self.client.get(f"/card/{bid}").get_data(as_text=True)
+            "name": "官方测试卡Y", "type": "unit", "unit_class": "infantry",
+            "source": "official", "card_tag": "测试"},
+            content_type="multipart/form-data", follow_redirects=True)
+        self.assertIn("官方卡牌投稿成功", r.get_data(as_text=True))
+        yid = self.sql("SELECT id FROM cards WHERE name='官方测试卡Y'")[0]["id"]
+        self.assertEqual(self.sql("SELECT tag FROM cards WHERE id=?", (yid,))[0]["tag"], "测试")
+        html = self.client.get(f"/card/{yid}").get_data(as_text=True)
         self.assertIn('data-tag="测试"', html)
         self.assertIn("测试卡牌：测试时使用的卡牌", html)
-        # 列表筛选
+
+        # 列表筛选：测试只有官方测试卡；正式不含它
         html = self.client.get("/cards?card_tag=测试").get_data(as_text=True)
-        self.assertIn("试验卡B", html)
-        self.assertNotIn("正式测试卡A", html)
+        self.assertIn("官方测试卡Y", html)
+        self.assertNotIn("自制卡X", html)
         html = self.client.get("/cards?card_tag=正式").get_data(as_text=True)
-        self.assertIn("正式测试卡A", html)
-        self.assertNotIn("试验卡B", html)
+        self.assertNotIn("官方测试卡Y", html)
+
+        # 管理员编辑官方卡改回正式
+        r = self.client.post(f"/card/{yid}/edit", headers=h, data={
+            "name": "官方测试卡Y", "type": "unit", "unit_class": "infantry",
+            "source": "official", "card_tag": "正式"},
+            content_type="multipart/form-data", follow_redirects=True)
+        self.assertEqual(self.sql("SELECT tag FROM cards WHERE id=?", (yid,))[0]["tag"], "正式")
 
     def test_import_tag_heuristic(self):
         """导入官方卡：ID/名称含 test/测试 → 测试卡，其余正式。"""

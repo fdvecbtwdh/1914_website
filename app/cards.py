@@ -29,8 +29,8 @@ def decorate_card(row, with_meta: bool = False) -> dict:
     d["type_label"] = CARD_TYPES.get(d.get("type"), d.get("type"))
     d["class_label"] = UNIT_CLASSES.get(d.get("unit_class"), d.get("unit_class") or "—")
     d["rarity_label"] = RARITIES.get(d.get("rarity"), d.get("rarity"))
-    d["tag"] = d.get("tag") or "正式"
-    d["tag_desc"] = CARD_TAGS.get(d["tag"], "")
+    d["tag"] = (d.get("tag") or "").strip()
+    d["tag_desc"] = CARD_TAGS.get(d["tag"], "") if d["tag"] else ""
     d["nation_label"] = NATIONS.get(d.get("nation"), d.get("nation"))
     if with_meta:
         d["vote_count"] = interactions.vote_count("card", d["id"])
@@ -246,7 +246,8 @@ def card_new():
                  fields["cost_g"], fields["cost_k"], fields["attack"], fields["defense"],
                  fields["vision_range"], fields["attack_range"], fields["abilities"],
                  fields["rarity"], art_url, fields["flavor_text"], fields["description"],
-                 user["id"], source, fields["card_tag"]))
+                 user["id"], source,
+                 fields["card_tag"] if source == "official" else ""))
             _set_labels("card", card_id, request.form.get("tags", ""))
             auth.audit("card_create", "card", card_id, fields["name"])
             flash("官方卡牌投稿成功！" if source == "official" else "卡牌投稿成功！", "success")
@@ -326,6 +327,12 @@ def card_edit(card_id: int):
             new_source = row["source"]
             if is_admin and request.form.get("source") in ("official", "community"):
                 new_source = request.form["source"]
+            # 性质仅对官方卡有意义：自制卡清空；官方卡取表单值（无效回退正式）
+            if new_source == "official":
+                new_tag = request.form.get("card_tag")
+                fields["card_tag"] = new_tag if new_tag in CARD_TAGS else DEFAULT_CARD_TAG
+            else:
+                fields["card_tag"] = ""
             slug = _unique_slug(fields["name"], exclude_id=card_id)
             db.execute(
                 """UPDATE cards SET slug=?, name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_k=?,
