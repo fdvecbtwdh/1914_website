@@ -10,7 +10,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="parent_id" value="">
       <textarea name="body" placeholder="发表评论… 支持 Markdown" required></textarea>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      <div class="comment-form-actions">
         <button class="btn btn-primary btn-sm" type="submit">发表评论</button>
         <button class="btn btn-sm" type="button" id="cancel-reply" style="display:none">取消回复</button>
         <span id="replying-to" class="md-hint" style="display:none"></span>

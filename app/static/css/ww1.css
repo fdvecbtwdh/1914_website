@@ -516,6 +516,13 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
 /* 用户生成的 Markdown 内容：长无空格字符串（URL/哈希等）不得撑破布局 */
 .comment-body, .md-body, .preview-pane { overflow-wrap: anywhere; }
 
+/* 评论表单操作行：窄屏放不下时提示文字整体换到下一行，按钮不折行 */
+.comment-form-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.comment-form-actions .btn { white-space: nowrap; }
+@media (max-width: 480px) {
+  .comment-form-actions .md-hint { flex-basis: 100%; }
+}
+
 /* ---------- 移动端 ---------- */
 .menu-toggle { display: none; }
 /* 筛选折叠容器：桌面端 summary 隐藏、内容常开（open 由 JS 兜底）；仅移动端显示 summary */
