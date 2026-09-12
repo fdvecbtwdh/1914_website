@@ -27,6 +27,24 @@ def import_cards(_args):
     print(f"[OK] 官方卡牌导入完成: 新建 {result['created']} / 更新 {result['updated']}")
 
 
+def save_default(_args):
+    """把当前数据库保存为重置默认模板（data/default.db）。
+    使用 SQLite backup API，网站运行中也可安全执行。
+    """
+    import sqlite3
+    from pathlib import Path
+    db.init_db(Config.DB_PATH)  # 确保存在
+    src_conn = sqlite3.connect(Config.DB_PATH)
+    dst = Path(Config.DB_PATH).parent / "default.db"
+    dst_conn = sqlite3.connect(dst)
+    with dst_conn:
+        src_conn.backup(dst_conn)
+    dst_conn.close()
+    src_conn.close()
+    print(f"[OK] 当前数据库已保存为重置默认模板: {dst}")
+    print("     之后删除数据库文件再启动，将自动恢复为此状态。")
+
+
 def create_admin(args):
     db.init_db(Config.DB_PATH)
     username = args.username or input("管理员用户名: ").strip()
@@ -83,6 +101,7 @@ def main():
     p_admin.set_defaults(func=create_admin)
     sub.add_parser("create-labels", help="创建初始标签").set_defaults(func=create_labels)
     sub.add_parser("stats", help="数据统计").set_defaults(func=stats)
+    sub.add_parser("save-default", help="把当前数据库保存为重置默认模板").set_defaults(func=save_default)
     args = parser.parse_args()
     args.func(args)
 

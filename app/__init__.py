@@ -17,15 +17,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         app.config.update(test_config)
     Config.init_app(app)
 
-    db.init_db(app.config["DB_PATH"])
+    # 数据库启动准备：默认模板恢复 / 建表迁移 / 空库自动播种
+    from .seeding import prepare_database
+    prepare_database(app)
     app.teardown_appcontext(db.close_db)
     app.extensions["started_at"] = time.time()
-
-    # 空数据库自动播种（官方卡牌 + 标签 + 初始管理员），已有数据不受影响
-    if app.config.get("AUTO_SEED", True):
-        from .seeding import auto_seed
-        with app.app_context():
-            auto_seed(app)
 
     # ---- 蓝图 ----
     from . import cards as cards_bp_mod

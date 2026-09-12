@@ -70,6 +70,8 @@ class Config:
 
     # --- 空数据库自动播种（官方卡牌 + 标签 + 初始管理员 admin/随机密码） ---
     AUTO_SEED = _bool("AUTO_SEED", "1")
+    # 删除数据库重启时的恢复模板（manage.py save-default 生成；留空 = DB 同目录 default.db）
+    DB_TEMPLATE_PATH = os.environ.get("DB_TEMPLATE_PATH", "")
 
     # --- 会话 / 安全 ---
     SESSION_COOKIE_HTTPONLY = True
