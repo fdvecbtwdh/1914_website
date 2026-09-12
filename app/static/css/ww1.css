@@ -285,7 +285,7 @@ table td, table th { border: 1px solid var(--line); padding: .35em .7em; }
 .comment .comment-body { margin-top: 6px; }
 .comment .comment-body p { margin: .35em 0; }
 .comment .comment-actions { margin-top: 6px; font-size: .82rem; display: flex; gap: 12px; }
-.comment .comment-actions a, .comment .comment-actions button { color: var(--muted); background: none; border: none; cursor: pointer; padding: 0; font-size: .82rem; }
+.comment .comment-actions a, .comment .comment-actions button { color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px 4px; margin: -6px -4px; font-size: .82rem; }
 .comment .comment-actions a:hover, .comment .comment-actions button:hover { color: var(--brass-bright); text-decoration: underline; }
 .comment-replies { margin-top: 12px; margin-left: 26px; border-left: 2px solid var(--line-soft); padding-left: 14px; display: flex; flex-direction: column; gap: 10px; }
 .comment.deleted { color: var(--muted); font-style: italic; }
@@ -523,6 +523,13 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .comment-form-actions .md-hint { flex-basis: 100%; }
 }
 
+/* Issue 管理操作行：窄屏下拉框与按钮上下排列，按钮不再被挤折行 */
+.moderate-row { display: flex; gap: 8px; }
+.moderate-row .btn { white-space: nowrap; }
+@media (max-width: 480px) {
+  .moderate-row { flex-direction: column; align-items: stretch; }
+}
+
 /* ---------- 移动端 ---------- */
 .menu-toggle { display: none; }
 /* 筛选折叠容器：桌面端 summary 隐藏、内容常开（open 由 JS 兜底）；仅移动端显示 summary */
@@ -566,6 +573,12 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .tab-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .tab-row::-webkit-scrollbar { display: none; }
   .tab-row a { white-space: nowrap; flex: none; }
+  /* 后台导航页签：同样单行横滑 */
+  .admin-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-nav a { white-space: nowrap; flex: none; }
+  /* 后台表格：压缩内边距，一屏能多看几列 */
+  table.data td, table.data th { padding: 7px 8px; font-size: .85rem; }
   .hero { padding: 30px 20px 26px; }
   .hero h1 { font-size: 2.2rem; }
   html { font-size: 14px; }

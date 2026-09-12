@@ -59,7 +59,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="status">
         <label>状态</label>
-        <div style="display:flex;gap:8px">
+        <div class="moderate-row">
           <select name="status">
             {% for k, v in statuses.items() %}
             <option value="{{ k }}" {% if issue.status == k %}selected{% endif %}>{{ v }}</option>
@@ -75,7 +75,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="priority">
         <label>优先级</label>
-        <div style="display:flex;gap:8px">
+        <div class="moderate-row">
           <select name="priority">
             {% for k, v in priorities.items() %}
             <option value="{{ k }}" {% if issue.priority == k %}selected{% endif %}>{{ v }}</option>
@@ -88,7 +88,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="labels">
         <label>标签（逗号分隔）</label>
-        <div style="display:flex;gap:8px">
+        <div class="moderate-row">
           <input type="text" name="tags" value="{{ labels|map(attribute='name')|join(', ') }}">
           <button class="btn btn-sm btn-primary" type="submit">更新标签</button>
         </div>
