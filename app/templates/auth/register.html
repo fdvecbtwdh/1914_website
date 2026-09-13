@@ -35,13 +35,11 @@
           </span>
         </label>
         <input type="text" name="security_question" maxlength="200"
-               placeholder="例如：我的小学在哪里？"
                value="{{ request.form.get('security_question', '') }}">
       </div>
       <div style="margin-bottom:18px">
         <label>安全问题答案（可选，用于账户恢复）</label>
         <input type="text" name="security_answer" maxlength="200" autocomplete="off"
-               placeholder="答案不区分大小写"
                value="{{ request.form.get('security_answer', '') }}">
       </div>
       <button class="btn btn-brass" type="submit" style="width:100%">注册</button>
