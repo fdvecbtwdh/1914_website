@@ -167,6 +167,14 @@ wsgi.py / run.py       生产入口(waitress) / 开发入口
 scripts/*.ps1          安装 / 初始化 / 启动脚本
 ```
 
+## 域名迁移
+
+网站域名集中在 `.env` 的两个配置：`SITE_URL`（对外完整地址，驱动 canonical/OG/sitemap/robots/邮件链接/GitHub 同步来源）与 `SITE_DOMAIN`（站点域名，驱动页头 logo、页脚、og:site_name、恢复邮件主题）。更换域名步骤：
+
+1. 修改 `.env` 的 `SITE_URL=https://new-domain.com` 与 `SITE_DOMAIN=new-domain.com`，重启服务
+2. Cloudflare Tunnel 的 Public Hostname 指向新域名（见 DEPLOY.md）
+3. 业务代码无需任何修改；历史 GitHub Issue 标题中的旧域名前缀为既有数据，不会自动变化
+
 ## 安全要点
 
 - SQL 全部参数化；XSS 经 Jinja 自动转义 + bleach 白名单消毒；CSRF 全站强制（表单 + API）

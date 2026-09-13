@@ -45,7 +45,7 @@ def _headers(token: str) -> dict:
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "1914.fun-site",
+        "User-Agent": f"{current_app.config['SITE_DOMAIN']}-site",
     }
 
 
@@ -78,7 +78,7 @@ def _issue_payload(issue) -> dict:
     body_parts.append(f"\n---\n*来源：[1914.fun]({current_app.config['SITE_URL']}"
                       f"/issue/{issue['id']}) · 作者：{issue['author_name'] or '匿名'}*")
     payload = {
-        "title": f"[1914.fun #{issue['id']}] {issue['title']}",
+        "title": f"[{current_app.config['SITE_DOMAIN']} #{issue['id']}] {issue['title']}",
         "body": "\n".join(body_parts)[:60000],
     }
     if labels:

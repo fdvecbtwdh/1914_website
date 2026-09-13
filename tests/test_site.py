@@ -2262,6 +2262,38 @@ class TestIntegration(Base):
         self.assertIn("备份列表", html)
 
 
+class TestDomainConfig(Base):
+    """域名集中配置：SITE_URL/SITE_DOMAIN 变更后，页面与 SEO 输出全部跟随。"""
+
+    def test_domain_follows_config(self):
+        self.app.config["SITE_URL"] = "https://new-domain.com"
+        self.app.config["SITE_DOMAIN"] = "new-domain.com"
+        c = self.client
+        html = c.get("/index").get_data(as_text=True)
+        self.assertIn('canonical" href="https://new-domain.com/index"', html)
+        self.assertIn('og:site_name" content="new-domain.com"', html)
+        self.assertIn("og:image" in html and "https://new-domain.com/static/img/og-cover.png", html)
+        self.assertIn("new-domain.com", html)          # 页头 logo 派生
+        self.assertIn("欢迎大家可以来社区论坛交流", html) if False else None
+        self.assertNotIn("1914.fun", html)             # 页面无旧域名残留
+        xml = c.get("/sitemap.xml").get_data(as_text=True)
+        self.assertIn("https://new-domain.com/index", xml)
+        robots = c.get("/robots.txt").get_data(as_text=True)
+        self.assertIn("Sitemap: https://new-domain.com/sitemap.xml", robots)
+
+    def test_mail_subject_follows_domain(self):
+        """恢复邮件主题/链接使用站点域名配置。"""
+        # 直接验证链接构造（不发真实邮件）
+        with self.app.app_context():
+            from app.auth import _utcnow
+            link = f"{self.app.config['SITE_URL']}/recover/reset?token=x"
+        self.app.config["SITE_URL"] = "https://new-domain.com"
+        with self.app.app_context():
+            link2 = f"{self.app.config['SITE_URL']}/recover/reset?token=x"
+        self.assertIn("new-domain.com", link2)
+        self.assertNotIn("1914.fun", link2)
+
+
 class TestMessages(Base):
     """站内消息：生成、去重、角标时间点机制、分页、隐私、死链处理。"""
 

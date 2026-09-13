@@ -563,7 +563,7 @@ def recover_email():
             f"<p>点击下面的链接设置新密码（<b>{minutes} 分钟内有效，且只能使用一次</b>）：</p>"
             f'<p><a href="{link}">{link}</a></p>'
             f"<p>如果这不是你本人的操作，请忽略此邮件，账户不会受影响。</p>")
-    if not send_mail(user["email"], "1914.fun 密码恢复", html):
+    if not send_mail(user["email"], f"{current_app.config['SITE_DOMAIN']} 密码恢复", html):
         flash("恢复邮件发送失败，请稍后再试，或改用安全问题恢复。", "danger")
         return redirect(url_for("auth.recover_methods"))
     return redirect(url_for("auth.recover_email_sent"))
