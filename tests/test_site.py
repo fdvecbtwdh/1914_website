@@ -635,17 +635,24 @@ class TestAdmin(Base):
         self.assertEqual(self.client.get("/card/1").status_code, 200)
 
     def test_report_flow(self):
-        # 用户举报
+        # 官方卡不可举报
         self.logout()
         self.register("rpt", "Passw0rd123")
         h = self.csrf_hdr()
         r = self.client.post("/api/report", headers=h,
                              data={"target_type": "card", "target_id": 1,
+                                   "reason": "内容不当"})
+        self.assertEqual(r.status_code, 400)
+        # 用户举报评论
+        c = self.client.post("/api/comment/card/1", headers=h,
+                             data={"body": "被举报的评论"}).get_json()["id"]
+        r = self.client.post("/api/report", headers=h,
+                             data={"target_type": "comment", "target_id": c,
                                    "reason": "内容不当"}).get_json()
         self.assertTrue(r["ok"])
         # 重复举报被拒
         r2 = self.client.post("/api/report", headers=h,
-                              data={"target_type": "card", "target_id": 1, "reason": "again"})
+                              data={"target_type": "comment", "target_id": c, "reason": "again"})
         self.assertEqual(r2.status_code, 400)
         # 管理员处理
         self.logout()
@@ -753,9 +760,9 @@ class TestAdmin(Base):
         c2 = self.client.post("/api/comment/card/1", headers=h,
                               data={"body": "待删评论二"}).get_json()["id"]
         self.client.post("/api/report", headers=h,
-                         data={"target_type": "card", "target_id": 1, "reason": "批量举报一"})
+                         data={"target_type": "comment", "target_id": c1, "reason": "批量举报一"})
         self.client.post("/api/report", headers=h,
-                         data={"target_type": "card", "target_id": 2, "reason": "批量举报二"})
+                         data={"target_type": "comment", "target_id": c2, "reason": "批量举报二"})
         self.logout()
         self.login(self.admin_user, self.admin_pass)
         h = self.csrf_hdr()
@@ -780,7 +787,9 @@ class TestAdmin(Base):
         self.assertIn("批量操作完成", r.get_data(as_text=True))
         self.assertEqual(
             self.sql("SELECT COUNT(*) c FROM reports WHERE status='resolved'")[0]["c"], 2)
-        self.assertEqual(self.sql("SELECT status FROM cards WHERE id=1")[0]["status"], "hidden")
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM comments WHERE id IN (?,?) AND is_deleted=1",
+                     (c1, c2))[0]["c"], 2)
         # 带筛选参数的列表页正常
         r = self.client.get("/admin/reports?status=resolved")
         self.assertEqual(r.status_code, 200)
@@ -1532,6 +1541,108 @@ class TestRoleBadges(Base):
         own = self.client.get("/u/mem").get_data(as_text=True)
         self.assertNotIn('title="管理员"', own)
         self.assertNotIn('title="版主"', own)
+
+
+class TestProfileRepliesAndReports(Base):
+    """用户主页：回复页签（含回复的回复+原帖位置）、举报用户（可关联回复）、
+    官方卡牌不可举报。"""
+
+    def _make_fixtures(self):
+        """pauthor 有卡 + replier 有顶层评论和嵌套回复；返回 (pauthor_id, replier_id)。"""
+        self.register("pauthor", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "P作者的卡", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        ccid = self.sql("SELECT id FROM cards WHERE name='P作者的卡'")[0]["id"]
+        self.logout()
+        self.register("replier", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post(f"/api/comment/card/{ccid}", headers=h, data={"body": "顶层评论内容"})
+        top = self.sql("SELECT id FROM comments WHERE body='顶层评论内容'")[0]["id"]
+        self.client.post(f"/api/comment/card/{ccid}", headers=h,
+                         data={"body": "嵌套回复内容", "parent_id": top})
+        # pauthor 回复 replier 的回复 → 构造真正的"回复的回复"
+        self.logout()
+        self.login("pauthor", "Passw0rd123")
+        nested = self.sql("SELECT id FROM comments WHERE body='嵌套回复内容'")[0]["id"]
+        self.client.post(f"/api/comment/card/{ccid}", headers=self.csrf_hdr(),
+                         data={"body": "第三层内容", "parent_id": nested})
+        self.logout()
+        pa = self.sql("SELECT id FROM users WHERE username='pauthor'")[0]["id"]
+        rp = self.sql("SELECT id FROM users WHERE username='replier'")[0]["id"]
+        return pa, rp, ccid
+
+    def test_profile_replies_tab(self):
+        _, _, ccid = self._make_fixtures()
+        html = self.client.get("/u/replier?tab=replies").get_data(as_text=True)
+        self.assertIn("顶层评论内容", html)
+        self.assertIn("嵌套回复内容", html)
+        self.assertIn(f"/card/{ccid}#comment-", html)
+        self.assertIn("原帖", html)
+        # pauthor 的主页：他那条"回复的回复"带标记
+        html = self.client.get("/u/pauthor?tab=replies").get_data(as_text=True)
+        self.assertIn("第三层内容", html)
+        self.assertIn("回复的回复", html)
+        # 页签入口存在
+        self.assertIn("tab=replies", self.client.get("/u/replier").get_data(as_text=True))
+
+    def test_report_user_and_with_reply(self):
+        pa, _, _ = self._make_fixtures()
+        self.logout()
+        self.register("reporter9", "Passw0rd123")
+        h = self.csrf_hdr()
+        # 直接举报用户
+        r = self.client.post("/api/report", headers=h, data={
+            "target_type": "user", "target_id": pa, "reason": "灌水"})
+        self.assertEqual(r.status_code, 200)
+        row = self.sql("SELECT target_id FROM reports WHERE target_type='user'")[0]
+        self.assertEqual(row["target_id"], pa)
+        # 关联回复举报 → 对象是该条评论
+        cid = self.sql("SELECT id FROM comments WHERE body='顶层评论内容'")[0]["id"]
+        r = self.client.post("/api/report", headers=h, data={
+            "target_type": "comment", "target_id": cid, "reason": "人身攻击"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.sql(
+            "SELECT COUNT(*) c FROM reports WHERE target_type='comment'")[0]["c"], 1)
+        # 主页渲染举报按钮与回复选项（不能举报自己）
+        html = self.client.get("/u/replier").get_data(as_text=True)
+        self.assertIn("report-user-btn", html)
+        self.assertIn("关联他的回复", html)
+        own = self.client.get("/u/reporter9").get_data(as_text=True)
+        self.assertNotIn("report-user-btn", own)
+
+    def test_official_card_report_rejected(self):
+        self.make_admin("rooty", "Passw0rd123")
+        self.login("rooty", "Passw0rd123")
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "官方不可举报卡", "type": "unit", "unit_class": "infantry",
+            "source": "official"}, content_type="multipart/form-data", follow_redirects=True)
+        ocid = self.sql("SELECT id FROM cards WHERE name='官方不可举报卡'")[0]["id"]
+        self.logout()
+        self.register("rep3", "Passw0rd123")
+        # 详情页不显示举报按钮
+        html = self.client.get(f"/card/{ocid}").get_data(as_text=True)
+        self.assertNotIn("举报此卡牌", html)
+        # API 直接举报官方卡 → 400
+        h = self.csrf_hdr()
+        r = self.client.post("/api/report", headers=h, data={
+            "target_type": "card", "target_id": ocid, "reason": "x"})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("不接受举报", r.get_json()["error"])
+        # 自制卡仍可正常举报
+        self.logout()
+        self.register("pauthor2", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "自制可举报卡", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        kcid = self.sql("SELECT id FROM cards WHERE name='自制可举报卡'")[0]["id"]
+        self.logout()
+        self.login("rep3", "Passw0rd123")
+        r = self.client.post("/api/report", headers=self.csrf_hdr(), data={
+            "target_type": "card", "target_id": kcid, "reason": "x"})
+        self.assertEqual(r.status_code, 200)
 
 
 class TestMessages(Base):

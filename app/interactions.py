@@ -241,6 +241,10 @@ def add_report(reporter_id: int, target_type: str, target_id: int, reason: str) 
         ok = _target_exists(target_type, target_id)
     if not ok:
         raise LookupError("目标不存在")
+    if target_type == "card":
+        src = db.query("SELECT source FROM cards WHERE id = ?", (target_id,), one=True)
+        if src and src["source"] == "official":
+            raise ValueError("官方卡牌由游戏数据发布，不接受举报")
     # 同一用户对同一目标只保留一条未处理举报
     dup = db.query(
         "SELECT 1 FROM reports WHERE reporter_id = ? AND target_type = ? AND target_id = ? "

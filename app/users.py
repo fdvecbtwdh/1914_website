@@ -33,7 +33,22 @@ def profile(username: str):
                  GROUP BY target_id) v ON v.target_id = i.id
                WHERE i.author_id = ? ORDER BY i.created_at DESC LIMIT ? OFFSET ?""",
             (user["id"], PAGE_SIZE, offset))
-        template = "users/_issue_item.html"
+    elif tab == "replies":
+        # 该用户的全部回复（含回复的回复），并带出原帖位置
+        total = db.query(
+            "SELECT COUNT(*) AS n FROM comments WHERE author_id = ? AND is_deleted = 0",
+            (user["id"],), one=True)["n"]
+        items = db.query(
+            """SELECT cm.id, cm.body, cm.parent_id, cm.created_at, cm.target_type, cm.target_id,
+                      c.name AS card_name, i.title AS issue_title,
+                      EXISTS (SELECT 1 FROM notifications n
+                              WHERE n.type = 'comment_mention' AND n.comment_id = cm.id) AS is_mention
+               FROM comments cm
+               LEFT JOIN cards c ON cm.target_type = 'card' AND c.id = cm.target_id
+               LEFT JOIN issues i ON cm.target_type = 'issue' AND i.id = cm.target_id
+               WHERE cm.author_id = ? AND cm.is_deleted = 0
+               ORDER BY cm.created_at DESC, cm.id DESC LIMIT ? OFFSET ?""",
+            (user["id"], PAGE_SIZE, offset))
     else:
         tab = "cards"
         total = db.query(
@@ -50,9 +65,16 @@ def profile(username: str):
                WHERE c.author_id = ? AND c.status = 'visible'
                ORDER BY c.created_at DESC LIMIT ? OFFSET ?""",
             (user["id"], PAGE_SIZE, offset))
-        template = "users/_card_item.html"
 
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    # 举报用户弹窗的"关联回复"选项：最近 20 条回复
+    reply_options = db.query(
+        """SELECT cm.id, cm.body, c.name AS card_name, i.title AS issue_title
+           FROM comments cm
+           LEFT JOIN cards c ON cm.target_type = 'card' AND c.id = cm.target_id
+           LEFT JOIN issues i ON cm.target_type = 'issue' AND i.id = cm.target_id
+           WHERE cm.author_id = ? AND cm.is_deleted = 0
+           ORDER BY cm.created_at DESC, cm.id DESC LIMIT 20""", (user["id"],))
     stats = {
         "cards": db.query(
             "SELECT COUNT(*) AS n FROM cards WHERE author_id = ? AND status='visible'",
@@ -69,7 +91,7 @@ def profile(username: str):
     }
     return render_template("users/profile.html", user=user, tab=tab, items=items,
                            total=total, page=page, pages=pages, stats=stats,
-                           item_template=template)
+                           reply_options=reply_options)
 
 
 # ---------- 个人设置 ----------

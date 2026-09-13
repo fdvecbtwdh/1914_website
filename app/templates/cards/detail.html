@@ -27,7 +27,7 @@
       </div>
       <div style="text-align:center;margin-top:12px">
         {% set is_admin_user = current_user and current_user['role'] == 'admin' %}
-        {% if current_user and current_user['id'] != card.author_id %}
+        {% if current_user and current_user['id'] != card.author_id and card.source != 'official' %}
         <button class="report-btn btn btn-sm" data-type="card" data-id="{{ card.id }}">举报此卡牌</button>
         {% endif %}
         {% if card.source == 'official' %}

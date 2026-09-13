@@ -86,6 +86,27 @@
     reportDialog.showModal();
   });
 
+  /* ---------- 用户主页：举报用户（可关联一条回复） ---------- */
+  const reportUserBtn = document.querySelector(".report-user-btn");
+  if (reportUserBtn) {
+    const ruDialog = document.getElementById("report-user-dialog");
+    reportUserBtn.addEventListener("click", function () {
+      ruDialog.querySelector("#report-user-reason").value = "";
+      ruDialog.showModal();
+    });
+    ruDialog.querySelector("#report-user-cancel").onclick = () => ruDialog.close();
+    ruDialog.querySelector("#report-user-submit").onclick = function () {
+      const reason = ruDialog.querySelector("#report-user-reason").value.trim();
+      const replyId = ruDialog.querySelector("#report-reply-select").value;
+      if (!reason) { alert("请填写举报理由"); return; }
+      post("/api/report", replyId
+        ? { target_type: "comment", target_id: replyId, reason: reason }
+        : { target_type: "user", target_id: reportUserBtn.dataset.uid, reason: reason })
+        .then((r) => { ruDialog.close(); alert(r.message || "举报已提交"); })
+        .catch((err) => alert(err.message));
+    };
+  }
+
   /* ---------- 评论：回复 / 编辑 / 删除 ---------- */
   document.addEventListener("click", function (e) {
     const replyBtn = e.target.closest(".comment-reply");

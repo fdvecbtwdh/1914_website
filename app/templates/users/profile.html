@@ -22,9 +22,16 @@
     <div class="stat"><b>{{ stats.votes_received }}</b><span>获赞</span></div>
   </div>
 
+  {% if current_user and current_user['id'] != user['id'] %}
+  <div style="text-align:right;margin:-6px 0 16px">
+    <button type="button" class="btn btn-sm report-user-btn" data-uid="{{ user.id }}">举报此用户</button>
+  </div>
+  {% endif %}
+
   <div class="tab-row">
     <a href="/u/{{ user.username }}?tab=cards" {% if tab == 'cards' %}class="active"{% endif %}>卡牌投稿</a>
     <a href="/u/{{ user.username }}?tab=issues" {% if tab == 'issues' %}class="active"{% endif %}>Issue</a>
+    <a href="/u/{{ user.username }}?tab=replies" {% if tab == 'replies' %}class="active"{% endif %}>回复</a>
   </div>
 
   <div class="panel">
@@ -47,7 +54,7 @@
       {% else %}
       <div class="empty-state"><span class="icon">🎖</span>还没有卡牌投稿</div>
       {% endfor %}
-    {% else %}
+    {% elif tab == 'issues' %}
       {% for issue in items %}
       <div class="issue-row">
         <span class="status-pill" style="background:{{ {('open'):'#4a9e4a','in_progress':'#c9a227','resolved':'#3a7bbf','closed':'#777777','duplicate':'#9b59b6'}.get(issue.status, '#777777') }}">{{ issue.status }}</span>
@@ -59,8 +66,41 @@
       {% else %}
       <div class="empty-state"><span class="icon">🐞</span>还没有提交 Issue</div>
       {% endfor %}
+    {% elif tab == 'replies' %}
+      {% for r in items %}
+      <div class="list-row">
+        <div class="grow" style="min-width:0">
+          <div style="overflow-wrap:anywhere">{{ r.body|excerpt(160) }}</div>
+          <div class="row-sub" style="margin-top:4px">
+            {% if r.parent_id %}<span class="badge">{{ '回复的回复' if r.is_mention else '回复' }}</span> {% endif %}
+            原帖：<a href="/{{ 'card' if r.target_type == 'card' else 'issue' }}/{{ r.target_id }}#comment-{{ r.id }}">{{ (r.card_name or r.issue_title) or '（原帖已删除）' }}</a>
+            · {{ r.created_at|ago }}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state"><span class="icon">💬</span>还没有回复</div>
+      {% endfor %}
     {% endif %}
   </div>
+
+  {% if current_user and current_user['id'] != user['id'] %}
+  <dialog id="report-user-dialog" class="report-dialog">
+    <h3 style="margin-top:0;color:var(--brass-bright)">举报用户 @{{ user.username }}</h3>
+    <label style="display:block;font-size:.9rem;margin-bottom:6px">关联他的回复（可选，选择后将举报该条回复）</label>
+    <select id="report-reply-select" style="width:100%;margin-bottom:10px">
+      <option value="">— 不选择，直接举报该用户 —</option>
+      {% for r in reply_options %}
+      <option value="{{ r.id }}">回复：{{ r.body|excerpt(40) }}（{{ (r.card_name or r.issue_title) or '原帖已删除' }}）</option>
+      {% endfor %}
+    </select>
+    <textarea id="report-user-reason" placeholder="请说明举报理由（必填）" style="width:100%;min-height:90px"></textarea>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+      <button type="button" class="btn btn-sm" id="report-user-cancel">取消</button>
+      <button type="button" class="btn btn-danger btn-sm" id="report-user-submit">提交举报</button>
+    </div>
+  </dialog>
+  {% endif %}
 
   {% if pages > 1 %}
   <div class="pagination">
