@@ -169,11 +169,12 @@ scripts/*.ps1          安装 / 初始化 / 启动脚本
 
 ## 域名迁移
 
-网站域名集中在 `.env` 的两个配置：`SITE_URL`（对外完整地址，驱动 canonical/OG/sitemap/robots/邮件链接/GitHub 同步来源）与 `SITE_DOMAIN`（站点域名，驱动页头 logo、页脚、og:site_name、恢复邮件主题）。更换域名步骤：
+网站域名集中在 `.env` 的两个配置：`SITE_URL`（对外完整地址，驱动 canonical/OG/sitemap/robots/邮件链接/GitHub 同步来源）与 `SITE_DOMAIN`（站点域名，驱动页头 logo、页脚、og:site_name、恢复邮件主题）。依赖域名的模块：SEO 输出、密码恢复邮件、GitHub 同步、处罚/GitHub 通知文案；其余页面均为相对路径。更换域名步骤：
 
 1. 修改 `.env` 的 `SITE_URL=https://new-domain.com` 与 `SITE_DOMAIN=new-domain.com`，重启服务
 2. Cloudflare Tunnel 的 Public Hostname 指向新域名（见 DEPLOY.md）
-3. 业务代码无需任何修改；历史 GitHub Issue 标题中的旧域名前缀为既有数据，不会自动变化
+3. 业务代码无需任何修改；修改 `.env` 后需重启服务（NSSM restart 或 start.ps1）生效
+4. 历史 GitHub Issue 标题中的旧域名前缀为既有数据，不会自动变化
 
 ## 安全要点
 

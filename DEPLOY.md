@@ -166,6 +166,9 @@ SESSION_SECRET=<粘贴一长串随机字符>
 # 对外地址（保持不变即可）
 SITE_URL=https://1914.fun
 SITE_DOMAIN=1914.fun
+# ↑ 站点域名集中配置：SITE_URL 驱动 canonical/OG/sitemap/robots/邮件链接/GitHub 同步来源；
+#   SITE_DOMAIN 驱动页头 logo/页脚/og:site_name/恢复邮件主题。
+#   更换域名 = 改这两行 + 重启服务 + Cloudflare Tunnel 指向新域名（业务代码无需修改）。
 
 # 路径改成服务器上的实际位置（注意用正斜杠）
 DATABASE_URL=sqlite:///C:/1914_website/data/1914.db
