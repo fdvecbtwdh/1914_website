@@ -4,6 +4,7 @@
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -2032,6 +2033,108 @@ class TestMuteBan(Base):
         html = self.client.get("/admin/reports").get_data(as_text=True)
         self.assertIn("禁言作者", html)
         self.assertIn("mute-dialog-btn", html)
+
+
+class TestIpSecurity(Base):
+    """IP 封禁（自动/手动、到期自动解除）、CF 真实 IP、安全事件、管理端。"""
+
+    def test_ip_ban_blocks_and_unban_restores(self):
+        with self.app.app_context():
+            from app import security
+            security.ban_ip("203.0.113.7", "短时间内大量请求", hours=1, auto=True)
+            self.assertTrue(security.active_ban("203.0.113.7"))
+        # 被封禁 IP 访问 → 403
+        r = self.client.get("/index", headers={"CF-Connecting-IP": "203.0.113.7"})
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("访问已被限制", r.get_data(as_text=True))
+        # 管理员解禁 → 立即恢复
+        self.make_admin("sroot", "Passw0rd123")
+        self.logout()
+        self.login("sroot", "Passw0rd123")
+        self.set_csrf()
+        r = self.client.post("/admin/security/unban", headers=self.csrf_hdr(),
+                             data={"ip": "203.0.113.7"})
+        self.assertEqual(r.status_code, 302)
+        r = self.client.get("/index", headers={"CF-Connecting-IP": "203.0.113.7"})
+        self.assertEqual(r.status_code, 200)
+
+    def test_ban_expiry_auto_lifts(self):
+        with self.app.app_context():
+            from app import security
+            security.ban_ip("198.51.100.9", "高频请求", hours=1, auto=True)
+            self.sql("UPDATE ip_bans SET expires_at='2000-01-01 00:00:00' "
+                     "WHERE ip='198.51.100.9'")
+            self.assertIsNone(security.active_ban("198.51.100.9"))
+        self.assertEqual(self.client.get(
+            "/index", headers={"CF-Connecting-IP": "198.51.100.9"}).status_code, 200)
+
+    def test_cf_real_ip_isolation(self):
+        """封禁 CF 真实 IP 不影响其他访客；关闭信任后不读 CF 头。"""
+        with self.app.app_context():
+            from app import security
+            security.ban_ip("203.0.113.99", "测试", hours=1)
+        self.assertEqual(self.client.get(
+            "/index", headers={"CF-Connecting-IP": "203.0.113.99"}).status_code, 403)
+        # 其他 IP 正常
+        self.assertEqual(self.client.get(
+            "/index", headers={"CF-Connecting-IP": "203.0.113.98"}).status_code, 200)
+        # 关闭 CF 信任后，伪造头不再命中封禁
+        self.app.config["TRUST_CF_HEADER"] = False
+        self.assertEqual(self.client.get(
+            "/index", headers={"CF-Connecting-IP": "203.0.113.99"}).status_code, 200)
+
+    def test_throttle_429_and_auto_ban(self):
+        """匿名高频访问 → 429 → 自动封禁 403；管理员会话豁免，可解禁。"""
+        # 先建立独立的管理员会话（在封禁发生前登录）
+        self.app.config["TESTING"] = False
+        self.make_admin("thrroot", "Passw0rd123")
+        admin_client = self.app.test_client()
+        with admin_client.session_transaction() as s2:
+            s2["csrf"] = "t"
+        admin_client.post("/login", data={
+            "csrf_token": "t", "username": "thrroot", "password": "Passw0rd123"})
+        # 匿名洪泛：30/s 触发 429，持续超限自动封禁 → 403
+        statuses = [self.client.get("/about").status_code for _ in range(95)]
+        self.assertIn(429, statuses)
+        self.assertIn(403, statuses)
+        with self.app.app_context():
+            from app import security, db
+            self.assertTrue(security.active_ban("127.0.0.1"))
+            kinds = [r["kind"] for r in db.query(
+                "SELECT kind FROM security_events WHERE ip='127.0.0.1'")]
+        self.assertIn("rate_limit", kinds)
+        self.assertIn("ip_ban", kinds)
+        # 管理员会话豁免 IP 封禁 → 可直接解禁，立即恢复（登录后 CSRF 轮换，取新 token）
+        page = admin_client.get("/admin/security").get_data(as_text=True)
+        token = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
+        r = admin_client.post("/admin/security/unban",
+                              headers={"X-CSRF-Token": token}, data={"ip": "127.0.0.1"})
+        self.assertEqual(r.status_code, 302)
+        # 等待 1 秒滑动窗口重置后访问恢复正常
+        import time
+        time.sleep(1.1)
+        self.assertEqual(self.client.get("/about").status_code, 200)
+
+    def test_security_page_admin_only(self):
+        r = self.client.get("/admin/security", follow_redirects=False)
+        self.assertEqual(r.status_code, 403)  # 未登录 → admin 守卫 403
+        self.make_admin("secroot", "Passw0rd123")
+        self.logout()
+        self.login("secroot", "Passw0rd123")
+        self.assertEqual(self.client.get("/admin/security").status_code, 200)
+        self.assertIn("安全防护", self.client.get("/admin/security").get_data(as_text=True))
+
+    def test_manual_ban_requires_reason_default_reason(self):
+        self.make_admin("manroot", "Passw0rd123")
+        self.logout()
+        self.login("manroot", "Passw0rd123")
+        self.set_csrf()
+        r = self.client.post("/admin/security/ban", headers=self.csrf_hdr(),
+                             data={"ip": "192.0.2.5"})
+        self.assertEqual(r.status_code, 302)
+        html = self.client.get("/admin/security").get_data(as_text=True)
+        self.assertIn("192.0.2.5", html)
+        self.assertIn("管理员手动封禁", html)
 
 
 class TestMessages(Base):

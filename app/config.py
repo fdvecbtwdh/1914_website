@@ -49,6 +49,9 @@ class Config:
 
     # --- 游戏项目（用于导入官方卡牌） ---
     GAME_PROJECT_PATH = os.environ.get("GAME_PROJECT_PATH", r"D:\Code\1914")
+    # Cloudflare Tunnel 部署下读取 CF-Connecting-IP 获取真实客户端 IP；
+    # 若站点不经 Cloudflare 直接暴露，请设为 0（防止伪造头绕过 IP 限制）
+    TRUST_CF_HEADER = os.environ.get("TRUST_CF_HEADER", "1") == "1"
     GAME_VERSION = os.environ.get("GAME_VERSION", "0.3.0")
     GAME_VERSION_LABEL = os.environ.get("GAME_VERSION_LABEL", "阶段3 · 15卡+迷雾")
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "fdvecbtwdh/1914")

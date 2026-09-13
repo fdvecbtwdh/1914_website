@@ -22,6 +22,28 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_at TEXT
 );
 
+-- IP 封禁（自动防护/管理员手动；到期由查询判断自动解除）
+CREATE TABLE IF NOT EXISTS ip_bans (
+    ip         TEXT PRIMARY KEY,             -- 统一小写存储（IPv4/IPv6 均可）
+    reason     TEXT NOT NULL,
+    auto       INTEGER NOT NULL DEFAULT 1,   -- 1=自动防护 0=管理员手动
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT                           -- NULL = 永久
+);
+
+-- 安全事件（防护触发记录；保留 7 天，仅管理员可见）
+CREATE TABLE IF NOT EXISTS security_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip         TEXT NOT NULL DEFAULT '',
+    kind       TEXT NOT NULL,                -- rate_limit / login_failed / login_locked / ip_ban / ip_unban
+    level      TEXT NOT NULL,                -- info / suspicious / blocked
+    detail     TEXT NOT NULL DEFAULT '',
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_security_events_time ON security_events(created_at);
+
 -- 处罚记录（禁言/封禁历史；users 表字段仅保存当前生效状态）
 CREATE TABLE IF NOT EXISTS penalties (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

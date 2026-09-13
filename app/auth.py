@@ -381,6 +381,13 @@ def login():
         if is_rate_limited(ident, ip):
             flash("登录失败次数过多，请 15 分钟后再试", "danger")
             audit("login_rate_limited", detail=ident)
+            try:
+                from . import security
+                with current_app.app_context():
+                    security.record_event(ip, "login_locked", "blocked",
+                                          "多次登录失败，触发 15 分钟锁定")
+            except Exception:
+                pass
             return render_template("auth/login.html"), 429
 
         user = db.query(
@@ -395,6 +402,14 @@ def login():
             register_login_failure("login", ident)
             register_login_failure("login", ip)
             flash("用户名或密码错误", "danger")
+            try:
+                from . import security
+                with current_app.app_context():
+                    level = "blocked" if is_rate_limited(ident, ip) else "info"
+                    security.record_event(ip, "login_failed", level,
+                                          "登录失败（用户名或密码错误）")
+            except Exception:
+                pass
             # 保留输入，方便直接改密码重试
             return render_template("auth/login.html", username=ident, password=password)
         if user["is_banned"]:

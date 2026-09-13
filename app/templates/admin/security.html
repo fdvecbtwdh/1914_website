@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}安全防护 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>安全防护</h1><span class="sub">IP 封禁 · 防护触发 · 最近安全事件</span></div>
+  {% include "_admin_nav.html" %}
+
+  <div class="grid-2" style="align-items:start">
+    <div class="panel" style="padding:14px 16px">
+      <h2 style="margin-top:0">🛡 当前 IP 封禁</h2>
+      {% if bans %}
+      <p style="color:var(--muted);margin:0 0 10px">当前封禁 {{ total_bans }} 个 IP{% if bans[0] %} · 最近：{{ bans[0].ip }}{% endif %}</p>
+      <table class="data">
+        <tr><th>IP</th><th>原因</th><th>来源</th><th>状态</th><th>操作</th></tr>
+        {% for b in bans %}
+        <tr>
+          <td class="mono" style="overflow-wrap:anywhere">{{ b.ip }}</td>
+          <td style="max-width:180px;overflow-wrap:anywhere">{{ b.reason }}</td>
+          <td>{% if b.auto %}<span class="badge">自动防护</span>{% else %}<span class="badge badge-olive">管理员手动</span>{% endif %}</td>
+          <td>{% if b.permanent %}<span class="badge badge-red">永久</span>{% else %}<span class="badge badge-brass">剩余 {{ b.remaining_text }}</span>{% endif %}</td>
+          <td>
+            <form method="post" action="/admin/security/unban" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="ip" value="{{ b.ip }}">
+              <button class="btn btn-sm unban-btn" type="submit"
+                      data-msg="确定要解除 IP {{ b.ip }} 的封禁吗？&#10;触发原因：{{ b.reason }}&#10;封禁时间：{{ b.created_at|dt }}&#10;剩余：{{ '永久' if b.permanent else b.remaining_text }}">解除封禁</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <div class="empty-state"><span class="icon">✅</span>当前没有 IP 被封禁</div>
+      {% endif %}
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div class="panel" style="padding:14px 16px">
+        <h2 style="margin-top:0">📋 最近 24 小时防护触发</h2>
+        <table class="meta-table">
+          <tr><td>登录失败</td><td><b>{{ stats.get('login_failed', 0) }}</b> 次 <span class="row-sub">（信息）</span></td></tr>
+          <tr><td>登录锁定</td><td><b>{{ stats.get('login_locked', 0) }}</b> 次 <span class="row-sub">（已限制 15 分钟）</span></td></tr>
+          <tr><td>高频请求</td><td><b>{{ stats.get('rate_limit', 0) }}</b> 次 <span class="row-sub">（可疑）</span></td></tr>
+          <tr><td>IP 封禁</td><td><b>{{ stats.get('ip_ban', 0) }}</b> 次 <span class="row-sub">（已拦截）</span></td></tr>
+        </table>
+        <p class="md-hint" style="margin-bottom:0">防护规则：每秒 30 请求触发限流（429），持续超限自动封禁 IP 1 小时；登录失败 5 次锁定 15 分钟；上传限制大小与图片格式；全站 CSRF 防护。</p>
+      </div>
+
+      <div class="panel" style="padding:14px 16px">
+        <h2 style="margin-top:0">✍ 手动封禁 IP</h2>
+        <form method="post" action="/admin/security/ban">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label style="display:block;font-size:.9rem;margin-bottom:4px">IP 地址（IPv4 / IPv6）</label>
+          <input type="text" name="ip" required style="margin-bottom:8px" placeholder="如 203.0.113.7">
+          <label style="display:block;font-size:.9rem;margin-bottom:4px">原因</label>
+          <input type="text" name="reason" value="管理员手动封禁" style="margin-bottom:8px">
+          <label style="display:block;font-size:.9rem;margin-bottom:4px">时长（小时，勾选"永久"后无效）</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <input type="number" name="hours" min="1" value="24" style="width:100px">
+            <label style="display:flex;align-items:center;gap:4px;font-size:.9rem">
+              <input type="checkbox" name="permanent" value="1"> 永久
+            </label>
+          </div>
+          <button class="btn btn-danger btn-sm" type="submit">封禁此 IP</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="padding:14px 16px;margin-top:18px">
+    <h2 style="margin-top:0">🕒 最近安全事件</h2>
+    {% if events %}
+    <table class="data">
+      <tr><th>时间</th><th>IP</th><th>类型</th><th>级别</th><th>说明</th></tr>
+      {% for e in events %}
+      <tr>
+        <td class="mono">{{ e.created_at|dt }}</td>
+        <td class="mono" style="overflow-wrap:anywhere">{{ e.ip }}</td>
+        <td>{{ {'rate_limit': '高频请求', 'login_failed': '登录失败', 'login_locked': '登录锁定', 'ip_ban': 'IP 封禁', 'ip_unban': 'IP 解禁'}.get(e.kind, e.kind) }}</td>
+        <td>
+          {% if e.level == 'blocked' %}<span class="badge badge-red">已拦截</span>
+          {% elif e.level == 'suspicious' %}<span class="badge badge-brass">可疑</span>
+          {% else %}<span class="badge">信息</span>{% endif %}
+        </td>
+        <td style="max-width:260px;overflow-wrap:anywhere">{{ e.detail }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="empty-state"><span class="icon">🕊</span>最近没有安全事件，一切正常。</div>
+    {% endif %}
+  </div>
+</div>
+<script>
+  document.querySelectorAll(".unban-btn").forEach(function (btn) {
+    btn.addEventListener("click", function (e) {
+      if (!confirm(btn.dataset.msg)) e.preventDefault();
+    });
+  });
+</script>
+{% endblock %}

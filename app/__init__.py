@@ -134,24 +134,58 @@ def create_app(test_config: dict | None = None) -> Flask:
             resp.headers.setdefault("Cache-Control", "public, max-age=86400")
         return resp
 
-    # ---- 请求计数（简单防刷：每秒每 IP 最多 30 个请求）----
+    # ---- IP 封禁 + 请求频率防护（每秒每 IP 最多 30 个请求，静态资源不计）----
     _bucket: dict = {}
+    _throttle_events: dict = {}  # ip -> 上次记录"高频"事件的分钟（去重用）
 
     @app.before_request
     def simple_throttle():
-        ip = request.remote_addr or "?"
+        from . import security, auth
+        ip = security.client_ip()
+        # 管理员会话整体豁免（IP 封禁 + 限流）——否则同 IP 的管理员会被锁在门外，
+        # 无人能解禁；其权限已由角色体系在路由层校验。
+        if auth.is_admin():
+            return None
+        # 已封禁 IP：直接拦截（过期由 security.active_ban 自动清理）
+        ban = security.active_ban(ip)
+        if ban:
+            left = f"，剩余 {ban['remaining_text']}" if ban["remaining_text"] else ""
+            return (f"访问已被限制（{ban['reason']}）{left}", 403,
+                    {"Content-Type": "text/plain; charset=utf-8"})
+        # 静态资源不限流；测试模式下跳过限流（IP 封禁检查仍然生效）
+        if request.path.startswith(("/static/", "/uploads/")) or app.config.get("TESTING"):
+            return None
         now = time.time()
         window = _bucket.get(ip)
         if window is None or now - window[0] >= 1.0:
             _bucket[ip] = (now, 1)
-            # 防止无限增长
             if len(_bucket) > 5000:
                 _bucket.clear()
             return None
         count = window[1] + 1
         _bucket[ip] = (window[0], count)
-        if count > 30:
-            g.request_throttled = True
+        if count <= 30:
+            return None
+        # 触发限流：记录可疑事件（每 IP 每分钟最多 1 条）
+        minute = int(now // 60)
+        if _throttle_events.get(ip) != minute:
+            _throttle_events[ip] = minute
+            try:
+                with app.app_context():
+                    security.record_event(ip, "rate_limit", "suspicious",
+                                          "每秒请求超过 30（持续高频）")
+            except Exception:
+                pass
+        # 3 倍阈值：自动封禁 1 小时
+        if count > 90:
+            try:
+                with app.app_context():
+                    security.ban_ip(ip, "短时间内大量请求（自动防护）",
+                                    hours=1, auto=True)
+            except Exception:
+                pass
+        return ("请求过于频繁，请稍后再试", 429,
+                {"Content-Type": "text/plain; charset=utf-8"})
 
     # ---- 错误页 ----
     def _error_page(code, message):

@@ -77,6 +77,66 @@ def index():
 
 # ---------- 用户管理 ----------
 
+# ---------- 安全防护 ----------
+
+@bp.route("/security")
+def security_page():
+    from . import security
+    now = datetime.utcnow()
+    bans = []
+    for row in db.query("SELECT * FROM ip_bans ORDER BY created_at DESC LIMIT 100"):
+        d = dict(row)
+        if d["expires_at"]:
+            try:
+                left = int((datetime.strptime(d["expires_at"][:19],
+                            "%Y-%m-%d %H:%M:%S") - now).total_seconds())
+            except ValueError:
+                left = 0
+            d["permanent"] = d["expires_at"] is not None and "permanent" in d["expires_at"]
+            d["remaining_text"] = security.remaining_text(max(0, left))
+        else:
+            d["permanent"] = True
+            d["remaining_text"] = None
+        d["auto"] = bool(d["auto"])
+        bans.append(d)
+    stats = {r["kind"]: r["n"] for r in db.query(
+        """SELECT kind, COUNT(*) AS n FROM security_events
+           WHERE created_at > datetime('now', '-24 hours') GROUP BY kind""")}
+    events = [dict(e) for e in db.query(
+        "SELECT * FROM security_events ORDER BY id DESC LIMIT 20")]
+    return render_template("admin/security.html", bans=bans, stats=stats,
+                           events=events, total_bans=len(bans))
+
+
+@bp.route("/security/ban", methods=["POST"])
+def security_ban():
+    from . import security
+    auth.check_csrf()
+    me = auth.current_user()
+    ip = (request.form.get("ip") or "").strip().lower()
+    reason = (request.form.get("reason") or "").strip() or "管理员手动封禁"
+    permanent = request.form.get("permanent") == "1"
+    hours = None if permanent else max(1, request.form.get("hours", type=int) or 1)
+    security.ban_ip(ip, reason, hours=hours, auto=False, created_by=me["id"])
+    auth.audit("ip_ban", detail=f"{ip} {reason}（{hours or '永久'}小时）")
+    flash(f"已封禁 IP {ip}", "success")
+    return redirect(url_for("admin.security_page"))
+
+
+@bp.route("/security/unban", methods=["POST"])
+def security_unban():
+    from . import security
+    auth.check_csrf()
+    me = auth.current_user()
+    ip = (request.form.get("ip") or "").strip().lower()
+    if security.unban_ip(ip, actor=me["id"]):
+        auth.audit("ip_unban", detail=ip)
+        flash(f"已解除 IP {ip} 的封禁", "success")
+    else:
+        flash("该 IP 当前不在封禁列表中", "warning")
+    return redirect(url_for("admin.security_page"))
+
+
 @bp.route("/users")
 def users():
     page = max(1, request.args.get("page", 1, type=int))
