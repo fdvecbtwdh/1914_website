@@ -10,8 +10,80 @@
     <div class="stat"><b>{{ stats.cards }}</b><span>卡牌</span></div>
     <div class="stat"><b>{{ stats.issues }}</b><span>Issue</span></div>
     <div class="stat"><b>{{ stats.comments }}</b><span>评论</span></div>
+    <div class="stat"><b>{{ stats.posts }}</b><span>论坛帖</span></div>
     <div class="stat"><b style="color:{{ 'var(--red)' if stats.open_reports else 'inherit' }}">{{ stats.open_reports }}</b><span>待处理举报</span></div>
     <div class="stat"><b>{{ stats.pending_sync }}</b><span>同步队列</span></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:18px">
+    <h2>今日概览</h2>
+    <div class="stat-strip" style="margin-bottom:0">
+      <div class="stat"><b>{{ stats.today_users }}</b><span>新注册用户</span></div>
+      <div class="stat"><b>{{ stats.today_posts }}</b><span>新论坛帖</span></div>
+      <div class="stat"><b>{{ stats.today_comments }}</b><span>新评论</span></div>
+      <div class="stat"><b>{{ stats.today_issues }}</b><span>新 Issue</span></div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:18px;align-items:start">
+    <div class="panel" style="padding:14px 16px">
+      <h2>⚖ 当前处罚状态</h2>
+      <div class="stat-strip" style="margin-bottom:8px">
+        <div class="stat"><b>{{ stats.muted }}</b><span>禁言中</span></div>
+        <div class="stat"><b>{{ stats.temp_banned }}</b><span>临时封禁</span></div>
+        <div class="stat"><b>{{ stats.perm_banned }}</b><span>永久封禁</span></div>
+        <div class="stat"><b>{{ stats.ip_banned }}</b><span>封禁 IP</span></div>
+        <div class="stat"><b>{{ stats.events_24h }}</b><span>24h 安全事件</span></div>
+      </div>
+      <p style="margin:0"><a href="/admin/security">安全防护详情 →</a> · <a href="/admin/users">用户管理 →</a></p>
+    </div>
+    <div class="panel" style="padding:14px 16px">
+      <h2>🔨 最近处罚</h2>
+      {% for p in recent_penalties %}
+      <div class="list-row">
+        <div class="grow" style="min-width:0">
+          <a href="/admin/users/{{ p.user_id }}">{{ p.username or '#' + p.user_id|string }}</a>
+          <div class="row-sub" style="overflow-wrap:anywhere">
+            {{ '永久禁言' if p.type == 'mute' and p.permanent else ('禁言' if p.type == 'mute' else '封禁') }}
+            · {{ p.reason }} · {{ p.created_at|ago }}{% if p.lifted_at %} · 已解除{% endif %}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="row-sub">暂无处罚记录</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:18px;align-items:start">
+    <div class="panel" style="padding:14px 16px">
+      <h2>🛡 最近安全事件</h2>
+      {% for e in recent_events %}
+      <div class="list-row">
+        <div class="grow" style="min-width:0">
+          <div class="row-sub" style="overflow-wrap:anywhere">
+            <span class="badge">{{ {'rate_limit': '高频请求', 'login_failed': '登录失败', 'login_locked': '登录锁定', 'ip_ban': 'IP 封禁', 'ip_unban': 'IP 解禁'}.get(e.kind, e.kind) }}</span>
+            {{ e.ip }} · {{ e.detail }}
+          </div>
+        </div>
+        <span class="row-sub">{{ e.created_at|ago }}</span>
+      </div>
+      {% else %}
+      <div class="row-sub">24 小时内没有安全事件</div>
+      {% endfor %}
+      <p style="margin:8px 0 0"><a href="/admin/security">安全防护详情 →</a></p>
+    </div>
+    <div class="panel" style="padding:14px 16px">
+      <h2>🆕 最近注册用户</h2>
+      {% for u in recent_users %}
+      <div class="list-row">
+        <div class="grow"><a href="/u/{{ u.username }}">{{ u.username }}</a></div>
+        <span class="row-sub">{{ u.created_at|ago }}</span>
+      </div>
+      {% else %}
+      <div class="row-sub">暂无</div>
+      {% endfor %}
+    </div>
   </div>
 
   <div class="panel">

@@ -4,6 +4,26 @@
 <div class="container" style="max-width:640px">
   <div class="page-title"><h1>个人设置</h1></div>
 
+  {% if ban_active or mute_active %}
+  <div class="panel" style="border-color:var(--red);margin-bottom:18px">
+    <h2 style="color:var(--red)">⛔ 账号处罚状态</h2>
+    {% if ban_active %}
+    <div class="row-sub" style="margin-bottom:6px">
+      <b>账号已被{% if ban_permanent %}永久封禁{% else %}临时封禁{% endif %}</b>
+      · 原因：{{ ban_reason }}{% if not ban_permanent %} · 解封时间：{{ ban_until|dt }}{% endif %}
+    </div>
+    {% endif %}
+    {% if mute_active %}
+    <div class="row-sub" style="margin-bottom:6px">
+      <b>禁言中</b>（无法发帖 / 回复 / 评论 / 投稿）
+      · 原因：{{ mute_reason }}
+      · 解除时间：{{ mute_until|dt }}
+      · 剩余：{{ mute_remaining }}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="panel">
     <h2>公开资料</h2>
     <form method="post" action="/settings">

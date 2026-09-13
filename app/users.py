@@ -114,7 +114,16 @@ def settings():
             flash("资料已更新", "success")
             return redirect(request.path)
     fresh = db.query("SELECT * FROM users WHERE id = ?", (user["id"],), one=True)
-    return render_template("users/settings.html", profile_user=fresh)
+    m = auth.active_mute(fresh)
+    return render_template("users/settings.html", profile_user=fresh,
+                           mute_active=bool(m),
+                           mute_reason=m["reason"] if m else "",
+                           mute_until=m["until"] if m else "",
+                           mute_remaining=m["remaining_text"] if m else "",
+                           ban_active=bool(fresh["is_banned"]),
+                           ban_permanent=fresh["ban_until"] is None,
+                           ban_reason=fresh["banned_reason"] or "",
+                           ban_until=fresh["ban_until"] or "")
 
 
 @bp.route("/settings/password", methods=["POST"])

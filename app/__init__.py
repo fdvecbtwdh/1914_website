@@ -166,22 +166,23 @@ def create_app(test_config: dict | None = None) -> Flask:
         _bucket[ip] = (window[0], count)
         if count <= 30:
             return None
-        # 触发限流：记录可疑事件（每 IP 每分钟最多 1 条）
-        minute = int(now // 60)
-        if _throttle_events.get(ip) != minute:
-            _throttle_events[ip] = minute
+        # 触发限流：记录可疑事件（每 IP 每 5 秒最多 1 条，用于持续超限统计）
+        slot = int(now // 5)
+        if _throttle_events.get(ip) != slot:
+            _throttle_events[ip] = slot
             try:
                 with app.app_context():
                     security.record_event(ip, "rate_limit", "suspicious",
                                           "每秒请求超过 30（持续高频）")
-            except Exception:
-                pass
-        # 3 倍阈值：自动封禁 1 小时
-        if count > 90:
-            try:
-                with app.app_context():
-                    security.ban_ip(ip, "短时间内大量请求（自动防护）",
-                                    hours=1, auto=True)
+                    # 60 秒内 3 次限流 = 持续高频 → 自动封禁 1 小时
+                    recent = db.query(
+                        "SELECT COUNT(*) AS n FROM security_events "
+                        "WHERE ip = ? AND kind = 'rate_limit' "
+                        "AND created_at > datetime('now', '-60 seconds')",
+                        (ip,), one=True)["n"]
+                    if recent >= 3:
+                        security.ban_ip(ip, "短时间内大量请求（自动防护）",
+                                        hours=1, auto=True)
             except Exception:
                 pass
         return ("请求过于频繁，请稍后再试", 429,

@@ -57,7 +57,7 @@ def about():
 @bp.route("/search")
 def search():
     q = (request.args.get("q") or "").strip()
-    cards, issues, users_found = [], [], []
+    cards, issues, users_found, forum_posts = [], [], [], []
     if q:
         like = f"%{q}%"
         cards = db.query(
@@ -74,12 +74,16 @@ def search():
                LEFT JOIN users u ON u.id = i.author_id
                WHERE i.title LIKE ? OR i.body LIKE ?
                ORDER BY i.created_at DESC LIMIT 12""", (like, like))
+        forum_posts = db.query(
+            """SELECT f.id, f.title, f.category, f.created_at FROM forum_posts f
+               WHERE f.status = 'visible' AND (f.title LIKE ? OR f.body LIKE ?)
+               ORDER BY f.created_at DESC LIMIT 12""", (like, like))
         users_found = db.query(
             """SELECT u.id, u.username, u.role, u.bio, u.created_at,
                (SELECT COUNT(*) FROM cards c WHERE c.author_id = u.id AND c.status='visible') AS card_count
                FROM users u WHERE u.username LIKE ? AND u.is_banned = 0 LIMIT 10""", (like,))
     return render_template("search.html", q=q, cards=cards, issues=issues,
-                           users=users_found)
+                           forum_posts=forum_posts, users=users_found)
 
 
 # ---------- 静态上传文件 ----------

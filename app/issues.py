@@ -111,10 +111,14 @@ def issue_list():
 def issue_new():
     if request.method == "POST":
         auth.check_csrf()
-        mute = auth.active_mute(auth.current_user())
+        user = auth.current_user()
+        mute = auth.active_mute(user)
         if mute:
             flash(auth.mute_notice(mute), "danger")
             return redirect(url_for("issues.issue_list"))
+        if auth.throttle("sub_issue", user["id"], 3, 1):
+            flash("提交过于频繁，请稍后再试", "danger")
+            return redirect(url_for("issues.issue_new"))
         title = (request.form.get("title") or "").strip()
         body = (request.form.get("body") or "").strip()
         if not (5 <= len(title) <= 120):

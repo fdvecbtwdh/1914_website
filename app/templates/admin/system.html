@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}系统维护 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>系统维护</h1><span class="sub">数据库 · 备份 · 存储</span></div>
+  {% include "_admin_nav.html" %}
+
+  <div class="grid-2" style="align-items:start">
+    <div class="panel" style="padding:14px 16px">
+      <h2>🗄 存储状态</h2>
+      <table class="meta-table">
+        <tr><td>数据库大小</td><td><b>{{ '%.2f'|format(db_size / 1048576) }} MB</b></td></tr>
+        <tr><td>上传文件</td><td>{{ upload_count }} 个 · {{ '%.2f'|format(upload_bytes / 1048576) }} MB</td></tr>
+        <tr><td>备份保留</td><td>{{ backup_count }} 份（自动保留最近 10 份）</td></tr>
+      </table>
+      <p class="md-hint" style="margin-bottom:0">最近错误可在 <a href="/admin/audit">系统日志</a> 查看；服务运行状态见 <a href="/status">状态页</a>。</p>
+    </div>
+
+    <div class="panel" style="padding:14px 16px">
+      <h2>💾 数据库备份</h2>
+      <form method="post" action="/admin/system/backup">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-brass" type="submit">立即备份数据库</button>
+      </form>
+      <p class="md-hint">备份保存到服务器 data\backups\ 目录，包含用户 / 论坛 / Issue / 卡牌 / 举报等全部数据（上传图片目录不在此内）。
+      恢复请停止服务后用备份文件覆盖 data\1914.db，再启动服务。</p>
+      <div class="row-sub">数据库位置：{{ db_path }}</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;padding:14px 16px">
+    <h2>备份列表</h2>
+    {% if backups %}
+    <table class="data">
+      <tr><th>备份文件</th><th>大小</th><th>时间</th></tr>
+      {% for b in backups %}
+      <tr>
+        <td class="mono" style="overflow-wrap:anywhere">{{ b.name }}</td>
+        <td>{{ '%.2f'|format(b.size / 1048576) }} MB</td>
+        <td class="mono">{{ b.mtime|dt }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="empty-state"><span class="icon">💾</span>还没有备份，点击上方按钮立即创建。</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -330,6 +330,18 @@ def register():
         return redirect(url_for("misc.home"))
     if request.method == "POST":
         check_csrf()
+        reg_ip = request.remote_addr or "?"
+        if throttle("register", reg_ip, 5, 15):
+            audit("register_rate_limited", detail=reg_ip)
+            try:
+                from . import security
+                with current_app.app_context():
+                    security.record_event(reg_ip, "register_limit", "blocked",
+                                          "15 分钟内注册超过 5 次，已拦截")
+            except Exception:
+                pass
+            flash("注册过于频繁，请 15 分钟后再试", "danger")
+            return render_template("auth/register.html"), 429
         username = (request.form.get("username") or "").strip()
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""

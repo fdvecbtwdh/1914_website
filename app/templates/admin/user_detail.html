@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}用户详情 {{ u.username }} — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1 style="overflow-wrap:anywhere">{{ u.username }}</h1>
+    <span class="badge {% if u.role == 'admin' %}badge-brass{% elif u.role == 'moderator' %}badge-olive{% endif %}">{{ u.role }}</span>
+    {% if u.is_banned %}<span class="badge badge-red">已封禁</span>
+    {% elif u.mute_until %}<span class="badge badge-brass">禁言中</span>{% endif %}
+    <span class="sub">ID {{ u.id }} · 注册于 {{ u.created_at|dt }} · 最后登录 {{ u.last_login_at|dt if u.last_login_at else '从未' }}</span>
+  </div>
+  {% include "_admin_nav.html" %}
+
+  <div class="grid-2" style="align-items:start">
+    <div class="panel" style="padding:14px 16px">
+      <h2>当前账号状态</h2>
+      {% if u.is_banned %}
+        <p style="margin:0 0 6px"><span class="badge badge-red">{% if u.ban_until %}临时封禁{% else %}永久封禁{% endif %}</span></p>
+        <div class="row-sub">原因：{{ u.banned_reason or '未记录' }}</div>
+        {% if u.ban_until %}<div class="row-sub">解封时间：{{ u.ban_until|dt }}（到期登录时自动解封）</div>{% endif %}
+        <form method="post" action="/admin/users/{{ u.id }}/action" style="margin-top:10px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm" name="action" value="unban">解封账号</button>
+        </form>
+      {% elif u.mute_until %}
+        <p style="margin:0 0 6px"><span class="badge badge-brass">禁言中</span>
+        {% if u.mute_until == 'permanent' %}<span class="badge badge-red">永久</span>{% endif %}</p>
+        <div class="row-sub">原因：{{ u.mute_reason or '未记录' }}</div>
+        {% if u.mute_until != 'permanent' %}<div class="row-sub">解除时间：{{ u.mute_until|dt }}（{{ u.mute_remaining }}）{% endif %}
+        <form method="post" action="/admin/users/{{ u.id }}/unmute" style="margin-top:10px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm" type="submit">解除禁言</button>
+        </form>
+      {% else %}
+        <p style="color:var(--muted);margin:0">账号正常，无进行中的处罚。</p>
+      {% endif %}
+    </div>
+
+    <div class="panel" style="padding:14px 16px">
+      <h2>内容统计</h2>
+      <div class="stat-strip" style="margin-bottom:0">
+        <div class="stat"><b>{{ stats.posts }}</b><span>论坛帖</span></div>
+        <div class="stat"><b>{{ stats.comments }}</b><span>评论/回复</span></div>
+        <div class="stat"><b>{{ stats.issues }}</b><span>Issue</span></div>
+        <div class="stat"><b>{{ stats.cards }}</b><span>卡牌</span></div>
+        <div class="stat"><b>{{ stats.reports_filed }}</b><span>发起举报</span></div>
+      </div>
+      <p style="margin:10px 0 0"><a href="/u/{{ u.username }}?tab=replies">查看公开主页 →</a></p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;padding:14px 16px">
+    <h2>处罚历史</h2>
+    {% if penalties %}
+    <table class="data">
+      <tr><th>时间</th><th>类型</th><th>原因</th><th>到期</th><th>操作管理员</th><th>状态</th></tr>
+      {% for p in penalties %}
+      <tr>
+        <td class="mono">{{ p.created_at|dt }}</td>
+        <td>{% if p.type == 'mute' %}禁言{% else %}封禁{% endif %}{% if p.permanent %}（永久）{% endif %}</td>
+        <td style="max-width:220px;overflow-wrap:anywhere">{{ p.reason }}</td>
+        <td>{% if p.expires_at %}{{ p.expires_at|dt }}{% else %}—{% endif %}</td>
+        <td>{{ p.admin_name or '—' }}</td>
+        <td>{% if p.lifted_at %}<span class="badge">已解除</span>{% else %}<span class="badge badge-brass">生效中</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="row-sub">暂无处罚记录</div>
+    {% endif %}
+  </div>
+
+  <div class="grid-2" style="margin-top:18px;align-items:start">
+    <div class="panel" style="padding:14px 16px">
+      <h2>被举报记录</h2>
+      {% for r in reported %}
+      <div class="list-row">
+        <div class="grow" style="min-width:0">
+          <div class="row-sub" style="overflow-wrap:anywhere">{{ r.reason }}</div>
+          <span class="row-sub">{{ r.reporter_name or '匿名' }} · {{ r.created_at|ago }} ·
+            {% if r.status == 'open' %}待处理{% elif r.status == 'resolved' %}已处理{% else %}已忽略{% endif %}</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="row-sub">没有被举报记录</div>
+      {% endfor %}
+    </div>
+    <div class="panel" style="padding:14px 16px">
+      <h2>相关管理操作</h2>
+      {% for a in audits %}
+      <div class="list-row">
+        <div class="grow" style="min-width:0">
+          <span class="badge">{{ a.action }}</span>
+          <span class="row-sub">{{ a.actor_name or '系统' }} · {{ a.created_at|dt }}{% if a.detail %} · {{ a.detail }}{% endif %}</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="row-sub">暂无相关操作记录</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

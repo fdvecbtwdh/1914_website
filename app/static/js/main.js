@@ -143,6 +143,43 @@
   bindPenaltyDialog("mute-dialog", "mute-dialog-btn", "/mute", null);
   bindPenaltyDialog("ban-dialog", "ban-dialog-btn", "/action", "ban");
 
+  // 举报处理页：处罚弹窗（类型 + 预填原因 + 联动标记举报已处理）
+  const penaltyDlg = document.getElementById("penalty-dialog");
+  if (penaltyDlg) {
+    let pUid = "", pReportId = "";
+    document.querySelectorAll(".penalty-dialog-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        pUid = btn.dataset.uid;
+        pReportId = btn.dataset.reportId || "";
+        penaltyDlg.querySelector("[data-name]").textContent = btn.dataset.name || "";
+        penaltyDlg.querySelector("[data-reason]").value = btn.dataset.reason || "";
+        penaltyDlg.querySelector("[data-ptype]").value = "mute";
+        penaltyDlg.showModal();
+      });
+    });
+    const syncDuration = function () {
+      penaltyDlg.querySelector("[data-duration-row]").style.display =
+        penaltyDlg.querySelector("[data-ptype]").value === "permban" ? "none" : "flex";
+    };
+    penaltyDlg.querySelector("[data-ptype]").addEventListener("change", syncDuration);
+    syncDuration();
+    penaltyDlg.querySelector("[data-close]").addEventListener("click", function () { penaltyDlg.close(); });
+    penaltyDlg.querySelector("[data-submit]").addEventListener("click", function () {
+      const reason = penaltyDlg.querySelector("[data-reason]").value.trim();
+      if (!reason) { alert("请填写处罚原因"); return; }
+      const fd = new FormData();
+      fd.set("user_id", pUid);
+      fd.set("ptype", penaltyDlg.querySelector("[data-ptype]").value);
+      fd.set("reason", reason);
+      fd.set("duration_value", penaltyDlg.querySelector("[data-duration]").value || "3");
+      fd.set("duration_unit", penaltyDlg.querySelector("[data-unit]").value);
+      if (pReportId) fd.set("report_id", pReportId);
+      post("/admin/reports/penalty", fd)
+        .then(() => location.reload())
+        .catch((err) => alert(err.message));
+    });
+  }
+
   /* ---------- 论坛帖子删除（作者/版主） ---------- */
   document.addEventListener("click", function (e) {
     const delBtn = e.target.closest(".forum-delete");

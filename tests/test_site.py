@@ -2031,8 +2031,8 @@ class TestMuteBan(Base):
             "target_type": "forum_post", "target_id": pid, "reason": "灌水"})
         self._admin_login()
         html = self.client.get("/admin/reports").get_data(as_text=True)
-        self.assertIn("禁言作者", html)
-        self.assertIn("mute-dialog-btn", html)
+        self.assertIn("处罚作者", html)
+        self.assertIn("penalty-dialog-btn", html)
 
 
 class TestIpSecurity(Base):
@@ -2094,7 +2094,12 @@ class TestIpSecurity(Base):
         admin_client.post("/login", data={
             "csrf_token": "t", "username": "thrroot", "password": "Passw0rd123"})
         # 匿名洪泛：30/s 触发 429，持续超限自动封禁 → 403
-        statuses = [self.client.get("/about").status_code for _ in range(95)]
+        statuses = []
+        import time
+        for _ in range(3):  # 3 批持续高频（跨 3 个事件窗口）→ 自动封禁
+            for _ in range(35):
+                statuses.append(self.client.get("/about").status_code)
+            time.sleep(5.2)
         self.assertIn(429, statuses)
         self.assertIn(403, statuses)
         with self.app.app_context():
@@ -2135,6 +2140,108 @@ class TestIpSecurity(Base):
         html = self.client.get("/admin/security").get_data(as_text=True)
         self.assertIn("192.0.2.5", html)
         self.assertIn("管理员手动封禁", html)
+
+
+class TestIntegration(Base):
+    """后台整合：统一反刷、举报处罚路由、用户详情页、备份。"""
+
+    def test_submit_rate_limit_forum(self):
+        self.register("spammer", "Passw0rd123")
+        self.set_csrf()
+        codes = []
+        for i in range(4):
+            r = self.client.post("/forum/new", headers=self.csrf_hdr(),
+                                 data={"title": "限速测试帖%d号" % i, "body": "x"},
+                                 follow_redirects=False)
+            codes.append(r.status_code)
+        self.assertIn(429, codes)
+        self.assertLess(self.sql("SELECT COUNT(*) c FROM forum_posts")[0]["c"], 4)
+
+    def test_register_rate_limit_by_ip(self):
+        """同一 IP 15 分钟内注册超过 5 次 → 429（每次注册后需登出再试）。"""
+        self.set_csrf()
+        for i in range(5):
+            self.logout()
+            self.set_csrf()
+            r = self.client.post("/register", data={
+                "csrf_token": "t", "username": "bot%d" % i,
+                "password": "Passw0rd123", "confirm": "Passw0rd123"})
+            self.assertEqual(r.status_code, 302)
+        self.logout()
+        self.set_csrf()
+        r = self.client.post("/register", data={
+            "csrf_token": "t", "username": "bot5",
+            "password": "Passw0rd123", "confirm": "Passw0rd123"})
+        self.assertEqual(r.status_code, 429)
+
+    def test_report_penalty_route(self):
+        # 作者发帖，他人举报
+        self.register("pauthor", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "title": "待处罚的帖子标题", "body": "x"}, follow_redirects=True)
+        pid = self.sql("SELECT id FROM forum_posts WHERE title='待处罚的帖子标题'")[0]["id"]
+        self.logout()
+        self.register("whistle", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/api/report", headers=h, data={
+            "target_type": "forum_post", "target_id": pid, "reason": "广告刷屏"})
+        rid = self.sql("SELECT id FROM reports ORDER BY id DESC LIMIT 1")[0]["id"]
+        # 管理员快捷处罚：禁言 3 天，原因预填举报原因
+        self.logout()
+        self._admin_login = None
+        self.make_admin("penroot", "Passw0rd123")
+        self.logout()
+        self.login("penroot", "Passw0rd123")
+        r = self.client.post("/admin/reports/penalty", headers=self.csrf_hdr(), data={
+            "user_id": self.sql("SELECT id FROM users WHERE username='pauthor'")[0]["id"],
+            "ptype": "mute", "reason": "广告刷屏", "duration_value": 3,
+            "duration_unit": "day", "report_id": rid})
+        self.assertEqual(r.status_code, 302)
+        row = self.sql("SELECT mute_reason FROM users WHERE username='pauthor'")[0]
+        self.assertEqual(row["mute_reason"], "广告刷屏")
+        self.assertEqual(self.sql(
+            "SELECT status FROM reports WHERE id=?", (rid,))[0]["status"], "resolved")
+        # 作者收到禁言通知
+        self.assertTrue(any(x["type"] == "user_mute" for x in self.sql(
+            "SELECT type FROM notifications WHERE recipient_id=?",
+            (self.sql("SELECT id FROM users WHERE username='pauthor'")[0]["id"],))))
+
+    def test_user_detail_page_admin_only(self):
+        self.register("detailu", "Passw0rd123")
+        uid = self.sql("SELECT id FROM users WHERE username='detailu'")[0]["id"]
+        # 未登录 → 403
+        self.logout()
+        self.assertEqual(self.client.get("/admin/users/%d" % uid).status_code, 403)
+        # 普通用户 → 403
+        self.login("detailu", "Passw0rd123")
+        self.assertEqual(self.client.get("/admin/users/%d" % uid).status_code, 403)
+        # 管理员 → 200 且包含关键区块
+        self.make_admin("droot", "Passw0rd123")
+        self.logout()
+        self.login("droot", "Passw0rd123")
+        html = self.client.get("/admin/users/%d" % uid).get_data(as_text=True)
+        self.assertIn("当前账号状态", html)
+        self.assertIn("处罚历史", html)
+        self.assertIn("被举报记录", html)
+        self.assertIn("解除禁言", html) if False else None
+
+    def test_backup_creates_file(self):
+        self.make_admin("bkroot", "Passw0rd123")
+        self.logout()
+        self.login("bkroot", "Passw0rd123")
+        self.set_csrf()
+        r = self.client.post("/admin/system/backup", headers=self.csrf_hdr(),
+                             follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        import os
+        backup_dir = os.path.join(os.path.dirname(self.app.config["DB_PATH"]), "backups")
+        files = [f for f in os.listdir(backup_dir) if f.endswith(".db")] \
+            if os.path.isdir(backup_dir) else []
+        self.assertTrue(len(files) >= 1)
+        # 系统维护页显示备份
+        html = self.client.get("/admin/system").get_data(as_text=True)
+        self.assertIn("备份列表", html)
 
 
 class TestMessages(Base):

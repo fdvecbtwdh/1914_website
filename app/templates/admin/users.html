@@ -50,7 +50,7 @@
     <tr>
       <td class="chk"><input type="checkbox" name="ids" value="{{ u.id }}" form="users-batch"></td>
       <td class="mono">{{ u.id }}</td>
-      <td><a href="/u/{{ u.username }}">{{ u.username }}</a></td>
+      <td><a href="/u/{{ u.username }}">{{ u.username }}</a> <a class="row-sub" href="/admin/users/{{ u.id }}">详情</a></td>
       <td>
         <form method="post" action="/admin/users/{{ u.id }}/action" style="display:flex;gap:6px;align-items:center">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

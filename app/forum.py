@@ -2,7 +2,8 @@
 帖子存 forum_posts 表；回复完全复用 comments（target_type='forum_post'），
 因此评论的编辑/删除/举报/消息通知/Markdown 渲染全部沿用现有机制。
 """
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import (Blueprint, abort, current_app, flash, redirect,
+                   render_template, request, url_for)
 
 from . import db, auth, interactions
 from .gameconstants import FORUM_CATEGORIES, DEFAULT_FORUM_CATEGORY
@@ -72,10 +73,22 @@ def list_posts():
 def new_post():
     if request.method == "POST":
         auth.check_csrf()
-        mute = auth.active_mute(auth.current_user())
+        user = auth.current_user()
+        mute = auth.active_mute(user)
         if mute:
             flash(auth.mute_notice(mute), "danger")
             return redirect(url_for("forum.list_posts"))
+        if auth.throttle("sub_forum", user["id"], 3, 1):
+            try:
+                with current_app.app_context():
+                    from . import security
+                    security.record_event(security.client_ip(), "submit_limit",
+                                          "suspicious", "发帖过于频繁（1 分钟内多帖）")
+            except Exception:
+                pass
+            flash("发帖过于频繁，请稍后再试", "danger")
+            return render_template("forum/form.html", categories=FORUM_CATEGORIES,
+                                   form_values=request.form, post=None, editing=False), 429
         values = _validate()
         if values is None:
             return render_template("forum/form.html", categories=FORUM_CATEGORIES,

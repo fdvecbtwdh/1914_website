@@ -40,6 +40,21 @@
     <p style="margin:12px 0 0"><a href="/issues?q={{ q|urlencode }}">在 Issues 中查看更多 →</a></p>
   </div>
 
+  {% if forum_posts %}
+  <div class="panel">
+    <h2>💬 论坛 ({{ forum_posts|length }})</h2>
+    {% for fp in forum_posts %}
+    <div class="issue-row">
+      <span class="badge">{{ fp.category }}</span>
+      <div class="grow">
+        <a class="issue-title" href="/forum/{{ fp.id }}">{{ fp.title }}</a>
+        <div class="issue-meta">{{ fp.created_at|ago }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <div class="panel">
     <h2>👤 用户 ({{ users|length }})</h2>
     {% for u in users %}

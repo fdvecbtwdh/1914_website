@@ -4,9 +4,11 @@
 from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 
+import os
+import sqlite3
 from datetime import datetime, timedelta
 
-from flask import (Blueprint, abort, flash, make_response, redirect,
+from flask import (Blueprint, abort, current_app, flash, make_response, redirect,
                    render_template, request, url_for)
 
 from . import db, auth
@@ -64,15 +66,52 @@ def index():
         "cards": db.query("SELECT COUNT(*) AS n FROM cards", one=True)["n"],
         "issues": db.query("SELECT COUNT(*) AS n FROM issues", one=True)["n"],
         "comments": db.query("SELECT COUNT(*) AS n FROM comments", one=True)["n"],
+        "posts": db.query("SELECT COUNT(*) AS n FROM forum_posts WHERE status='visible'",
+                          one=True)["n"],
         "open_reports": db.query("SELECT COUNT(*) AS n FROM reports WHERE status='open'",
                                  one=True)["n"],
         "pending_sync": db.query(
             "SELECT COUNT(*) AS n FROM sync_queue WHERE status='pending'", one=True)["n"],
+        "today_users": db.query(
+            "SELECT COUNT(*) AS n FROM users WHERE created_at >= date('now')",
+            one=True)["n"],
+        "today_posts": db.query(
+            "SELECT COUNT(*) AS n FROM forum_posts WHERE created_at >= date('now')",
+            one=True)["n"],
+        "today_comments": db.query(
+            "SELECT COUNT(*) AS n FROM comments WHERE created_at >= date('now')",
+            one=True)["n"],
+        "today_issues": db.query(
+            "SELECT COUNT(*) AS n FROM issues WHERE created_at >= date('now')",
+            one=True)["n"],
+        "muted": db.query(
+            "SELECT COUNT(*) AS n FROM users WHERE mute_until IS NOT NULL", one=True)["n"],
+        "temp_banned": db.query(
+            "SELECT COUNT(*) AS n FROM users WHERE is_banned=1 AND ban_until IS NOT NULL",
+            one=True)["n"],
+        "perm_banned": db.query(
+            "SELECT COUNT(*) AS n FROM users WHERE is_banned=1 AND ban_until IS NULL",
+            one=True)["n"],
+        "ip_banned": db.query("SELECT COUNT(*) AS n FROM ip_bans", one=True)["n"],
+        "events_24h": db.query(
+            "SELECT COUNT(*) AS n FROM security_events "
+            "WHERE created_at > datetime('now', '-24 hours')", one=True)["n"],
     }
     recent_audit = db.query(
         """SELECT a.*, u.username AS actor_name FROM audit_log a
            LEFT JOIN users u ON u.id = a.actor_id ORDER BY a.id DESC LIMIT 12""")
-    return render_template("admin/index.html", stats=stats, recent_audit=recent_audit)
+    recent_events = db.query(
+        "SELECT * FROM security_events ORDER BY id DESC LIMIT 6")
+    recent_penalties = db.query(
+        """SELECT p.*, u.username AS username, a.username AS admin_name
+           FROM penalties p LEFT JOIN users u ON u.id = p.user_id
+           LEFT JOIN users a ON a.id = p.created_by
+           ORDER BY p.id DESC LIMIT 6""")
+    recent_users = db.query(
+        "SELECT username, created_at FROM users ORDER BY id DESC LIMIT 5")
+    return render_template("admin/index.html", stats=stats, recent_audit=recent_audit,
+                           recent_events=recent_events, recent_penalties=recent_penalties,
+                           recent_users=recent_users)
 
 
 # ---------- 用户管理 ----------
@@ -210,6 +249,111 @@ def user_unmute(user_id: int):
            dedup_anchor=f"unmute{user_id}")
     flash(f"已解除 {target['username']} 的禁言", "success")
     return _back("admin.users")
+
+
+# ---------- 系统维护 / 备份 ----------
+
+@bp.route("/system")
+def system_page():
+    db_path = current_app.config["DB_PATH"]
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    try:
+        db_size = os.path.getsize(db_path)
+    except OSError:
+        db_size = 0
+    upload_bytes = 0
+    upload_count = 0
+    for root, _dirs, files in os.walk(str(upload_dir)):
+        for f in files:
+            try:
+                upload_bytes += os.path.getsize(os.path.join(root, f))
+                upload_count += 1
+            except OSError:
+                pass
+    backup_dir = os.path.join(os.path.dirname(db_path), "backups")
+    backups = []
+    if os.path.isdir(backup_dir):
+        for f in sorted(os.listdir(backup_dir), reverse=True):
+            if f.endswith(".db"):
+                fp = os.path.join(backup_dir, f)
+                backups.append({"name": f, "size": os.path.getsize(fp),
+                                "mtime": datetime.fromtimestamp(os.path.getmtime(fp))})
+    return render_template("admin/system.html",
+                           db_path=db_path, db_size=db_size,
+                           upload_count=upload_count, upload_bytes=upload_bytes,
+                           backups=backups[:10], backup_count=len(backups))
+
+
+@bp.route("/system/backup", methods=["POST"])
+def system_backup():
+    auth.check_csrf()
+    me = auth.current_user()
+    db_path = current_app.config["DB_PATH"]
+    backup_dir = os.path.join(os.path.dirname(db_path), "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    name = f"1914-backup-{datetime.now():%Y%m%d-%H%M%S}.db"
+    dest = os.path.join(backup_dir, name)
+    src = sqlite3.connect(db_path)
+    dst = sqlite3.connect(dest)
+    src.backup(dst)
+    dst.close()
+    src.close()
+    # 保留最近 10 份
+    files = sorted(f for f in os.listdir(backup_dir) if f.endswith(".db"))
+    for old in files[:-10]:
+        try:
+            os.remove(os.path.join(backup_dir, old))
+        except OSError:
+            pass
+    auth.audit("db_backup", detail=name)
+    flash(f"备份完成：{name}", "success")
+    return redirect(url_for("admin.system_page"))
+
+
+@bp.route("/users/<int:user_id>")
+def user_detail(user_id: int):
+    user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True)
+    if user is None:
+        abort(404)
+    d = dict(user)
+    if d.get("mute_until") and d["mute_until"] != "permanent":
+        from .auth import active_mute
+        m = active_mute(user)
+        d["mute_active"] = bool(m)
+        d["mute_remaining"] = m["remaining_text"] if m else "已到期"
+    penalties = db.query(
+        """SELECT p.*, a.username AS admin_name FROM penalties p
+           LEFT JOIN users a ON a.id = p.created_by
+           WHERE p.user_id = ? ORDER BY p.id DESC LIMIT 20""", (user_id,))
+    reported = db.query(
+        """SELECT r.*, u.username AS reporter_name FROM reports r
+           LEFT JOIN users u ON u.id = r.reporter_id
+           WHERE r.target_type = 'user' AND r.target_id = ?
+           ORDER BY r.id DESC LIMIT 20""", (user_id,))
+    audits = db.query(
+        """SELECT a.*, u.username AS actor_name FROM audit_log a
+           LEFT JOIN users u ON u.id = a.actor_id
+           WHERE a.actor_id = ? OR a.target_id = ?
+           ORDER BY a.id DESC LIMIT 20""", (user_id, user_id))
+    stats = {
+        "posts": db.query(
+            "SELECT COUNT(*) AS n FROM forum_posts WHERE author_id = ?", (user_id,),
+            one=True)["n"],
+        "comments": db.query(
+            "SELECT COUNT(*) AS n FROM comments WHERE author_id = ? AND is_deleted = 0",
+            (user_id,), one=True)["n"],
+        "issues": db.query(
+            "SELECT COUNT(*) AS n FROM issues WHERE author_id = ?", (user_id,),
+            one=True)["n"],
+        "cards": db.query(
+            "SELECT COUNT(*) AS n FROM cards WHERE author_id = ?", (user_id,),
+            one=True)["n"],
+        "reports_filed": db.query(
+            "SELECT COUNT(*) AS n FROM reports WHERE reporter_id = ?", (user_id,),
+            one=True)["n"],
+    }
+    return render_template("admin/user_detail.html", u=d, penalties=penalties,
+                           reported=reported, audits=audits, stats=stats)
 
 
 @bp.route("/users/batch", methods=["POST"])
@@ -557,6 +701,97 @@ def issue_action(issue_id: int):
 
 
 # ---------- 评论管理 ----------
+
+# ---------- 论坛帖子管理 ----------
+
+@bp.route("/forum")
+def forum_admin():
+    page = max(1, request.args.get("page", 1, type=int))
+    offset = (page - 1) * PAGE_SIZE
+    q = (request.args.get("q") or "").strip()
+    status = request.args.get("status", "")
+    where, args = ["1=1"], []
+    if q:
+        where.append("(f.title LIKE ? OR f.body LIKE ?)")
+        args.extend([f"%{q}%", f"%{q}%"])
+    if status in ("visible", "hidden", "deleted"):
+        where.append("f.status = ?")
+        args.append(status)
+    where_sql = " AND ".join(where)
+    total = db.query(
+        f"SELECT COUNT(*) AS n FROM forum_posts f WHERE {where_sql}",
+        args, one=True)["n"]
+    rows = db.query(
+        f"""SELECT f.*, u.username AS author_name,
+           (SELECT COUNT(*) FROM comments cm WHERE cm.target_type = 'forum_post'
+            AND cm.target_id = f.id AND cm.is_deleted = 0) AS reply_count
+           FROM forum_posts f LEFT JOIN users u ON u.id = f.author_id
+           WHERE {where_sql} ORDER BY f.id DESC LIMIT ? OFFSET ?""",
+        (*args, PAGE_SIZE, offset))
+    return render_template("admin/forum.html", posts=rows, total=total,
+                           page=page, pages=max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE),
+                           q=q, status=status)
+
+
+@bp.route("/forum/<int:post_id>/action", methods=["POST"])
+def forum_action(post_id: int):
+    auth.check_csrf()
+    action = request.form.get("action", "")
+    post = db.query("SELECT * FROM forum_posts WHERE id = ?", (post_id,), one=True)
+    if post is None:
+        abort(404)
+    if action in ("hide", "restore", "delete"):
+        status = {"hide": "hidden", "restore": "visible", "delete": "deleted"}[action]
+        db.execute("UPDATE forum_posts SET status = ?, updated_at = datetime('now') "
+                   "WHERE id = ?", (status, post_id))
+        auth.audit(f"forum_post_{action}", "forum_post", post_id, post["title"])
+        flash(f"帖子已{ {'hide': '隐藏', 'restore': '恢复', 'delete': '删除'}[action] }",
+              "success")
+    return redirect(url_for("admin.forum_admin"))
+
+
+@bp.route("/reports/penalty", methods=["POST"])
+def report_penalty():
+    """举报处理页快捷处罚：禁言 / 临时封禁 / 永久封禁，并可联动标记举报已处理。"""
+    auth.check_csrf()
+    me = auth.current_user()
+    target_uid = request.form.get("user_id", type=int) or 0
+    report_id = request.form.get("report_id", type=int) or 0
+    ptype = request.form.get("ptype", "")
+    reason = (request.form.get("reason") or "").strip()
+    if target_uid == me["id"]:
+        flash("不能对自己执行处罚", "warning")
+        return _back("admin.reports")
+    target = db.query("SELECT id, username FROM users WHERE id = ?",
+                      (target_uid,), one=True)
+    if target is None:
+        abort(404)
+    if not reason:
+        flash("处罚必须填写原因", "danger")
+        return _back("admin.reports")
+    permanent = request.form.get("permanent") == "1"
+    value = request.form.get("duration_value", type=int) or 3
+    unit = request.form.get("duration_unit", "day")
+    if ptype == "mute":
+        label = _apply_mute(target_uid, reason, permanent, value, unit, me["id"])
+        done = f"已禁言 {target['username']}（{label}）"
+    elif ptype == "tempban":
+        label = _apply_ban(target_uid, reason, False, value, unit, me["id"])
+        done = f"已临时封禁 {target['username']}（{label}）"
+    elif ptype == "permban":
+        label = _apply_ban(target_uid, reason, True, 0, "day", me["id"])
+        done = f"已永久封禁 {target['username']}"
+    else:
+        flash("未知的处罚类型", "danger")
+        return _back("admin.reports")
+    if report_id:
+        db.execute("UPDATE reports SET status='resolved', handled_by=? WHERE id=?",
+                   (me["id"], report_id))
+    auth.audit("report_penalty", "user", target_uid,
+               f"{done} 原因：{reason}")
+    flash(done + "，相关举报已标记处理", "success")
+    return _back("admin.reports")
+
 
 @bp.route("/comments")
 def comments():

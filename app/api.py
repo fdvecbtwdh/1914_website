@@ -59,6 +59,8 @@ def comment_new(target_type: str, target_id: int):
     mute = auth.active_mute(user)
     if mute:
         return _json_error(403, auth.mute_notice(mute))
+    if auth.throttle("sub_comment", user["id"], 10, 1):
+        return _json_error(429, "评论过于频繁，请稍后再试")
     body = (request.form.get("body") or "").strip()
     parent_raw = request.form.get("parent_id", "")
     parent_id = int(parent_raw) if parent_raw.isdigit() else None

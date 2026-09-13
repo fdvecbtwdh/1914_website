@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}论坛管理 — 后台{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-title"><h1>论坛管理</h1><span class="sub">{{ total }} 个帖子</span></div>
+  {% include "_admin_nav.html" %}
+
+  <form class="filter-bar" method="get" action="/admin/forum">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索标题 / 正文…">
+    <select name="status">
+      <option value="">全部状态</option>
+      {% for s in ('visible', 'hidden', 'deleted') %}
+      <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ {'visible': '显示中', 'hidden': '已隐藏', 'deleted': '已删除'}[s] }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">筛选</button>
+    {% if q or status %}<a class="filter-clear" href="/admin/forum">✕ 清除筛选</a>{% endif %}
+  </form>
+
+  <table class="data">
+    <tr><th>ID</th><th>标题</th><th>作者</th><th>分类</th><th>回复</th><th>状态</th><th>时间</th><th>操作</th></tr>
+    {% for p in posts %}
+    <tr>
+      <td class="mono">{{ p.id }}</td>
+      <td style="max-width:260px;overflow-wrap:anywhere"><a href="/forum/{{ p.id }}">{{ p.title }}</a></td>
+      <td><a href="/admin/users/{{ p.author_id }}">{{ p.author_name or '已注销' }}</a></td>
+      <td><span class="badge">{{ p.category }}</span></td>
+      <td>{{ p.reply_count }}</td>
+      <td>{% if p.status == 'visible' %}<span class="badge badge-olive">显示中</span>
+          {% elif p.status == 'hidden' %}<span class="badge badge-brass">已隐藏</span>
+          {% else %}<span class="badge badge-red">已删除</span>{% endif %}</td>
+      <td class="mono">{{ p.created_at|dt }}</td>
+      <td>
+        <form method="post" action="/admin/forum/{{ p.id }}/action" style="display:flex;gap:4px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if p.status != 'hidden' %}
+          <button class="btn btn-sm" name="action" value="hide">隐藏</button>
+          {% else %}
+          <button class="btn btn-sm" name="action" value="restore">恢复</button>
+          {% endif %}
+          {% if p.status != 'deleted' %}
+          <button class="btn btn-sm btn-danger" name="action" value="delete"
+                  onclick="return confirm('确定删除帖子《{{ p.title }}》吗？')">删除</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="empty-state">没有匹配的帖子</td></tr>
+    {% endfor %}
+  </table>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% else %}<a href="/admin/forum?q={{ q|urlencode }}&status={{ status }}&page={{ p }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
