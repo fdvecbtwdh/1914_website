@@ -1886,7 +1886,7 @@ class TestGithubProxy(Base):
         self.assertEqual(captured.get("method"), "POST")
         self.assertIn("/repos/fdvecbtwdh/1914_website/issues", captured.get("url", ""))
         self.assertEqual(captured.get("proxy"), "http://127.0.0.1:7890")
-        row = self.sql("SELECT status FROM sync_queue WHERE issue_id=?")[0]
+        row = self.sql("SELECT status FROM sync_queue WHERE issue_id=?", (wid,))[0]
         self.assertEqual(self.sql("SELECT github_number FROM issues WHERE id=?", (wid,))[0]["github_number"], 7)
         self.assertEqual(row["status"], "done")
 
