@@ -18,6 +18,7 @@
       <option value="issue" {% if ttype == 'issue' %}selected{% endif %}>Issue</option>
       <option value="comment" {% if ttype == 'comment' %}selected{% endif %}>评论</option>
       <option value="user" {% if ttype == 'user' %}selected{% endif %}>用户</option>
+      <option value="forum_post" {% if ttype == 'forum_post' %}selected{% endif %}>论坛帖子</option>
     </select>
     <button class="btn btn-sm" type="submit">筛选</button>
     {% if status or ttype %}<a class="filter-clear" href="/admin/reports">✕ 清除筛选</a>{% endif %}

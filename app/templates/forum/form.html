@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑帖子' if editing else '发布帖子' }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>{{ '编辑帖子' if editing else '发布帖子' }}</h1>
+  </div>
+
+  <form class="panel form-panel" method="post"
+        action="{{ '/forum/' + post.id|string + '/edit' if editing else '/forum/new' }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="margin-bottom:14px">
+      <label>标题 *（3–80 字符）</label>
+      <input type="text" name="title" minlength="3" maxlength="80" required
+             value="{{ (form_values.title if form_values else (post.title if post else '')) }}">
+    </div>
+    <div style="margin-bottom:14px">
+      <label>分类 *</label>
+      {% set cur_cat = (form_values.category if form_values else (post.category if post else '')) or categories[0] %}
+      <select name="category">
+        {% for c in categories %}
+        <option value="{{ c }}" {% if cur_cat == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="margin-bottom:14px">
+      <label>正文 *（支持 Markdown）</label>
+      <textarea name="body" data-md-preview="#body-preview" required
+                placeholder="和大家聊聊游戏…">{{ (form_values.body if form_values else (post.body if post else '')) }}</textarea>
+      <div id="body-preview" class="preview-pane"></div>
+      <p class="md-hint">支持 Markdown（会经过安全过滤）。</p>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button class="btn btn-brass" type="submit">{{ '保存修改' if editing else '发布帖子' }}</button>
+      <a class="btn" href="{{ '/forum/' + post.id|string if editing else '/forum' }}">取消</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

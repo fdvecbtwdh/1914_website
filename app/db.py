@@ -116,6 +116,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT")
     if "last_viewed_messages_at" not in ucols:
         conn.execute("ALTER TABLE users ADD COLUMN last_viewed_messages_at TEXT")
+    ncols = [r[1] for r in conn.execute("PRAGMA table_info(notifications)")]
+    if ncols and "forum_post_id" not in ncols:
+        # 论坛回复通知需要指向论坛帖子
+        conn.execute("ALTER TABLE notifications ADD COLUMN forum_post_id INTEGER")
     qcols = [r[1] for r in conn.execute("PRAGMA table_info(sync_queue)")]
     if qcols and "repo" not in qcols:
         # 旧库的同步队列表缺 repo 列（按 Issue 所属分流目标仓库），

@@ -27,6 +27,7 @@
       <a href="/about" {% if request.path == '/about' %}class="active"{% endif %}>游戏</a>
       <a href="/cards" {% if request.path.startswith('/card') %}class="active"{% endif %}>卡牌</a>
       <a href="/issues" {% if request.path.startswith('/issue') %}class="active"{% endif %}>Bug / Issues</a>
+      <a href="/forum" {% if request.path.startswith('/forum') %}class="active"{% endif %}>论坛</a>
       <a href="/search" {% if request.path == '/search' %}class="active"{% endif %}>搜索</a>
       <a href="/status" {% if request.path.startswith('/status') %}class="active"{% endif %}>状态</a>
     </nav>

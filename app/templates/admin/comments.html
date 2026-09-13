@@ -11,6 +11,7 @@
       <option value="">全部对象</option>
       <option value="card" {% if ttype == 'card' %}selected{% endif %}>卡牌评论</option>
       <option value="issue" {% if ttype == 'issue' %}selected{% endif %}>Issue 评论</option>
+      <option value="forum_post" {% if ttype == 'forum_post' %}selected{% endif %}>论坛回复</option>
     </select>
     <select name="state">
       <option value="">全部状态</option>
@@ -45,7 +46,7 @@
       <td class="chk"><input type="checkbox" name="ids" value="{{ c.id }}" form="comments-batch"></td>
       <td class="mono">{{ c.id }}</td>
       <td>{{ c.author_name or '已注销' }}</td>
-      <td>{% if c.target_type == 'card' %}<a href="/card/{{ c.target_id }}">卡牌 #{{ c.target_id }}</a>{% else %}<a href="/issue/{{ c.target_id }}">Issue #{{ c.target_id }}</a>{% endif %}</td>
+      <td>{% if c.target_type == 'card' %}<a href="/card/{{ c.target_id }}">卡牌 #{{ c.target_id }}</a>{% elif c.target_type == 'forum_post' %}<a href="/forum/{{ c.target_id }}">帖子 #{{ c.target_id }}</a>{% else %}<a href="/issue/{{ c.target_id }}">Issue #{{ c.target_id }}</a>{% endif %}</td>
       <td style="max-width:380px">
         {% if c.is_deleted %}<span style="color:var(--muted);font-style:italic">（已删除）</span>
         {% else %}{{ c.body[:120] }}{% if c.body|length > 120 %}…{% endif %}{% endif %}

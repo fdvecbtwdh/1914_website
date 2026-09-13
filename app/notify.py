@@ -11,20 +11,22 @@
 from . import db
 
 
-def notify(recipient_id, actor_id, ntype, card_id=None, issue_id=None, comment_id=None) -> None:
+def notify(recipient_id, actor_id, ntype, card_id=None, issue_id=None,
+           forum_post_id=None, comment_id=None) -> None:
     """创建一条站内消息。
     - 自己操作自己的内容不通知；
     - dedup_key 唯一约束防重复（前端重复提交/网络重试不会产生重复消息）。
     """
     if not recipient_id or not actor_id or recipient_id == actor_id:
         return
-    dedup = f"{ntype}:{actor_id}:{comment_id if comment_id else (card_id if card_id else issue_id)}"
+    anchor = comment_id or card_id or issue_id or forum_post_id
+    dedup = f"{ntype}:{actor_id}:{anchor}"
     try:
         db.execute(
             """INSERT OR IGNORE INTO notifications
-               (recipient_id, actor_id, type, card_id, issue_id, comment_id, dedup_key)
-               VALUES (?,?,?,?,?,?,?)""",
-            (recipient_id, actor_id, ntype, card_id, issue_id, comment_id, dedup))
+               (recipient_id, actor_id, type, card_id, issue_id, forum_post_id, comment_id, dedup_key)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (recipient_id, actor_id, ntype, card_id, issue_id, forum_post_id, comment_id, dedup))
     except Exception:
         pass  # 唯一约束冲突 = 重复消息，静默忽略
 

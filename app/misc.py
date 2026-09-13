@@ -109,6 +109,9 @@ def sitemap():
         urls.append((f"{base}/card/{r['id']}", "0.7"))
     for r in db.query("SELECT id, updated_at FROM issues ORDER BY id DESC LIMIT 2000"):
         urls.append((f"{base}/issue/{r['id']}", "0.7"))
+    for r in db.query("SELECT id, updated_at FROM forum_posts WHERE status='visible' "
+                      "ORDER BY id DESC LIMIT 2000"):
+        urls.append((f"{base}/forum/{r['id']}", "0.7"))
     xml_items = []
     for loc, pri in urls:
         xml_items.append(f"<url><loc>{loc}</loc><priority>{pri}</priority></url>")

@@ -41,14 +41,15 @@ def inbox():
                      args, one=True)["n"]
     # 联表后 type 与 cards.type 重名，需要 n. 前缀
     rows = db.query(
-        f"""SELECT n.id, n.type, n.card_id, n.issue_id, n.comment_id,
+        f"""SELECT n.id, n.type, n.card_id, n.issue_id, n.forum_post_id, n.comment_id,
                   n.created_at, a.username AS actor_name, a.role AS actor_role,
-                  c.name AS card_name, i.title AS issue_title,
+                  c.name AS card_name, i.title AS issue_title, fp.title AS forum_title,
                   cm.is_deleted AS comment_deleted
            FROM notifications n
            LEFT JOIN users a ON a.id = n.actor_id
            LEFT JOIN cards c ON c.id = n.card_id
            LEFT JOIN issues i ON i.id = n.issue_id
+           LEFT JOIN forum_posts fp ON fp.id = n.forum_post_id
            LEFT JOIN comments cm ON cm.id = n.comment_id
            WHERE n.{cond.replace(' AND type IN', ' AND n.type IN')}
            ORDER BY n.created_at DESC, n.id DESC
@@ -60,11 +61,14 @@ def inbox():
         d["text"] = _text(d)
         # 目标内容已被删除时不生成链接
         d["gone"] = (d["card_id"] and d["card_name"] is None) or \
-                    (d["issue_id"] and d["issue_title"] is None)
+                    (d["issue_id"] and d["issue_title"] is None) or \
+                    (d["forum_post_id"] and d["forum_title"] is None)
         if d["gone"]:
             d["url"] = None
         elif d["card_id"]:
             d["url"] = f"/card/{d['card_id']}" + (f"#comment-{d['comment_id']}" if d["comment_id"] else "")
+        elif d["forum_post_id"]:
+            d["url"] = f"/forum/{d['forum_post_id']}" + (f"#comment-{d['comment_id']}" if d["comment_id"] else "")
         elif d["issue_id"]:
             d["url"] = f"/issue/{d['issue_id']}" + (f"#comment-{d['comment_id']}" if d["comment_id"] else "")
         else:
@@ -90,12 +94,14 @@ def _text(d: dict) -> str:
     actor = d["actor_name"] or "已注销用户"
     if d["type"] == "card_comment":
         return f"{actor} 评论了你的卡牌" + (f"《{d['card_name']}》" if d["card_name"] else "（该内容已被删除）")
+    if d["type"] == "forum_reply":
+        return f"{actor} 回复了你的帖子" + (f"《{d['forum_title']}》" if d["forum_title"] else "（该内容已被删除）")
     if d["type"] == "comment_mention":
-        ctx = d["card_name"] or d["issue_title"]
+        ctx = d["card_name"] or d["issue_title"] or d["forum_title"]
         base = f"《{ctx}》" if ctx else ""
         return f"{actor} 在回复中提到了你" + (f"（{base}）" if base else "")
     if d["type"] == "comment_reply":
-        ctx = d["card_name"] or d["issue_title"]
+        ctx = d["card_name"] or d["issue_title"] or d["forum_title"]
         base = f"《{ctx}》" if ctx else ""
         return f"{actor} 回复了你的评论" + (f"（{base}）" if base else "")
     if d["type"] == "card_vote":

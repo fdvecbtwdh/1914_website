@@ -453,6 +453,8 @@ def _hide_reported_content(target_type: str, target_id: int) -> None:
     elif target_type == "issue":
         db.execute("UPDATE issues SET status='closed', updated_at=datetime('now') "
                    "WHERE id = ?", (target_id,))
+    elif target_type == "forum_post":
+        db.execute("UPDATE forum_posts SET status = 'hidden', updated_at = datetime('now') WHERE id = ?", (target_id,))
 
 
 @bp.route("/reports")
@@ -517,6 +519,11 @@ def reports_batch():
 
 
 def _report_target(target_type: str, target_id: int) -> dict | None:
+    if target_type == "forum_post":
+        row = db.query("SELECT title FROM forum_posts WHERE id = ?", (target_id,), one=True)
+        if row is None:
+            return None
+        return {"label": f"帖子：{row['title']}", "url": f"/forum/{target_id}"}
     if target_type == "card":
         row = db.query("SELECT id, name FROM cards WHERE id = ?", (target_id,), one=True)
         return {"url": f"/card/{target_id}", "label": f"卡牌：{row['name']}"} if row else None

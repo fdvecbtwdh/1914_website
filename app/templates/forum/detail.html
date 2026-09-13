@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import role_badge %}
+{% block title %}{{ post.title }} — {{ site_name }} 论坛{% endblock %}
+{% block meta_description %}{{ post.body|excerpt(150) }}{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block content %}
+<div class="container">
+  <nav class="breadcrumb"><a href="/forum">社区论坛</a> / {{ post.title }}</nav>
+
+  <div class="panel" style="padding:18px 20px">
+    <div class="page-title" style="margin-bottom:10px">
+      <h1 style="font-size:1.5rem;overflow-wrap:anywhere">{{ post.title }}</h1>
+      <span class="badge">{{ post.category }}</span>
+      {% if post.status == 'hidden' %}<span class="badge badge-red">已隐藏</span>{% endif %}
+    </div>
+    <p style="color:var(--muted);margin:0 0 14px">
+      <a href="/u/{{ post.author_name or '?' }}">{{ post.author_name or '已注销' }}</a>{{ role_badge(post.author_role) }}
+      发布于 {{ post.created_at|dt }}
+      {% if post.updated_at and post.updated_at != post.created_at %} · 编辑于 {{ post.updated_at|ago }}{% endif %}
+      · <button class="report-btn" data-type="forum_post" data-id="{{ post.id }}"
+          style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">举报</button>
+      {% if current_user and (current_user['id'] == post.author_id or is_moderator) %}
+        · <a href="/forum/{{ post.id }}/edit">编辑</a>
+        · <button class="forum-delete" data-id="{{ post.id }}"
+            style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">删除</button>
+      {% endif %}
+    </p>
+    <div class="md-body" style="overflow-wrap:anywhere">{{ post.body|md|safe }}</div>
+  </div>
+
+  {% set target_type = 'forum_post' %}
+  {% set target_id = post.id %}
+  {% include "_comments.html" with context %}
+</div>
+{% endblock %}

@@ -7,6 +7,7 @@ TARGET_TYPES = ("card", "issue", "comment")
 VALID_TARGETS = {
     "card": ("cards", "card"),
     "issue": ("issues", "issue"),
+    "forum_post": ("forum_posts", "forum"),
     "comment": ("comments", "comment"),
 }
 
@@ -17,6 +18,9 @@ def _target_exists(target_type: str, target_id: int) -> bool:
     table, _ = VALID_TARGETS[target_type]
     if target_type == "comment":
         row = db.query(f"SELECT 1 FROM {table} WHERE id = ? AND is_deleted = 0",
+                       (target_id,), one=True)
+    elif target_type == "forum_post":
+        row = db.query("SELECT 1 FROM forum_posts WHERE id = ? AND status = 'visible'",
                        (target_id,), one=True)
     else:
         row = db.query(f"SELECT 1 FROM {table} WHERE id = ?", (target_id,), one=True)
@@ -109,7 +113,7 @@ def vote_counts_map(target_type: str, ids: list[int]) -> dict[int, int]:
 def add_comment(user_id: int, target_type: str, target_id: int,
                 body: str, parent_id: int | None = None) -> int:
     from .markdown_utils import render_markdown
-    if target_type not in ("card", "issue"):
+    if target_type not in ("card", "issue", "forum_post"):
         raise ValueError("无效的评论对象")
     if not body.strip():
         raise ValueError("评论内容不能为空")
@@ -146,6 +150,12 @@ def add_comment(user_id: int, target_type: str, target_id: int,
         if card and card["author_id"] and card["author_id"] != user_id and not parent_id:
             notify(card["author_id"], user_id, "card_comment", card_id=target_id,
                    comment_id=cid)
+    elif target_type == "forum_post":
+        post = db.query("SELECT author_id FROM forum_posts WHERE id = ?",
+                        (target_id,), one=True)
+        if post and post["author_id"] and post["author_id"] != user_id and not parent_id:
+            notify(post["author_id"], user_id, "forum_reply", forum_post_id=target_id,
+                   comment_id=cid)
     else:
         issue = db.query("SELECT author_id FROM issues WHERE id = ?",
                          (target_id,), one=True)
@@ -158,6 +168,7 @@ def add_comment(user_id: int, target_type: str, target_id: int,
                "comment_mention" if mention else "comment_reply",
                card_id=target_id if target_type == "card" else None,
                issue_id=target_id if target_type == "issue" else None,
+               forum_post_id=target_id if target_type == "forum_post" else None,
                comment_id=cid)
     return cid
 
@@ -227,7 +238,7 @@ def comment_counts_map(target_type: str, ids: list[int]) -> dict[int, int]:
 
 # ---------- 举报 ----------
 
-REPORTABLE = ("card", "issue", "comment", "user")
+REPORTABLE = ("card", "issue", "comment", "user", "forum_post")
 
 
 def add_report(reporter_id: int, target_type: str, target_id: int, reason: str) -> int:

@@ -171,15 +171,29 @@ CREATE TABLE IF NOT EXISTS recovery_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_recovery_tokens_user ON recovery_tokens(user_id);
 
+-- 论坛帖子（回复复用 comments 表，target_type='forum_post'）
+CREATE TABLE IF NOT EXISTS forum_posts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT NOT NULL,
+    body       TEXT NOT NULL DEFAULT '',          -- Markdown
+    category   TEXT NOT NULL DEFAULT '讨论',
+    author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status     TEXT NOT NULL DEFAULT 'visible',   -- visible / hidden / deleted
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_status ON forum_posts(status, created_at);
+
 -- 站内消息（不做逐条已读；用户级 last_viewed_messages_at 记录查看位置）
 CREATE TABLE IF NOT EXISTS notifications (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    type         TEXT NOT NULL,   -- card_comment / comment_reply / comment_mention / card_vote / issue_comment / issue_vote
-    card_id      INTEGER,
-    issue_id     INTEGER,
-    comment_id   INTEGER,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    type          TEXT NOT NULL,   -- card_comment / comment_reply / comment_mention / card_vote / issue_comment / issue_vote / forum_reply
+    card_id       INTEGER,
+    issue_id      INTEGER,
+    forum_post_id INTEGER,
+    comment_id    INTEGER,
     dedup_key    TEXT UNIQUE,     -- 防重复（同一操作重试只产生一条）
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );

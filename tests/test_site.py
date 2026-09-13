@@ -1670,6 +1670,149 @@ class TestOrderCardCost(Base):
         self.assertNotIn("指挥点 (K)", html)
 
 
+class TestForum(Base):
+    """论坛：浏览、发帖、回复、通知、举报、权限、排序与分类。"""
+
+    def _post(self, title="论坛测试帖标题", body="正文内容", category="讨论", who=None):
+        if who:
+            self.logout()
+            self.login(who, "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(),
+                         data={"title": title, "body": body, "category": category},
+                         follow_redirects=True)
+        return self.sql("SELECT id FROM forum_posts WHERE title=?", (title,))[0]["id"]
+
+    def test_guest_browse_and_login_gate(self):
+        r = self.client.get("/forum")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("还没有帖子", r.get_data(as_text=True))
+        # 未登录发帖 → 跳登录
+        r = self.client.get("/forum/new", follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+
+    def test_create_reply_notify_and_messages(self):
+        self.register("fa", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "title": "论坛帖子标题甲", "body": "**大家好**，来讨论玩法。",
+            "category": "攻略"}, follow_redirects=True)
+        pid = self.sql("SELECT id FROM forum_posts WHERE title='论坛帖子标题甲'")[0]["id"]
+        self.assertEqual(
+            self.sql("SELECT category FROM forum_posts WHERE id=?", (pid,))[0]["category"], "攻略")
+        html = self.client.get(f"/forum/{pid}").get_data(as_text=True)
+        self.assertIn("<strong>大家好</strong>", html)
+        # fa 回复自己的帖子 → 不产生通知
+        self.set_csrf()
+        self.client.post(f"/api/comment/forum_post/{pid}", headers=self.csrf_hdr(),
+                         data={"body": "自己顶一下"})
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM notifications")[0]["c"], 0)
+        # fb 回复 fa 的帖子 → forum_reply 通知
+        self.logout()
+        self.register("fb", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post(f"/api/comment/forum_post/{pid}", headers=h, data={"body": "欢迎！"})
+        fa = self.sql("SELECT id FROM users WHERE username='fa'")[0]["id"]
+        n = self.sql("SELECT type, forum_post_id FROM notifications WHERE recipient_id=?", (fa,))
+        self.assertTrue(any(x["type"] == "forum_reply" and x["forum_post_id"] == pid for x in n))
+        # fb 回复 fa 的评论 → comment_reply 通知
+        top = self.sql("SELECT id FROM comments WHERE body='自己顶一下'")[0]["id"]
+        self.client.post(f"/api/comment/forum_post/{pid}", headers=h,
+                         data={"body": "回复你的评论", "parent_id": top})
+        n = self.sql("SELECT type FROM notifications WHERE recipient_id=?", (fa,))
+        self.assertTrue(any(x["type"] == "comment_reply" for x in n))
+        # fa 的消息页：文案与论坛跳转链接
+        self.logout()
+        self.login("fa", "Passw0rd123")
+        html = self.client.get("/messages").get_data(as_text=True)
+        self.assertIn("回复了你的帖子", html)
+        self.assertIn(f"/forum/{pid}#comment-", html)
+
+    def test_sort_and_category(self):
+        self.register("fc", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/forum/new", headers=h, data={
+            "title": "甲帖排序标题", "body": "x", "category": "攻略"}, follow_redirects=True)
+        aid = self.sql("SELECT id FROM forum_posts WHERE title='甲帖排序标题'")[0]["id"]
+        self.client.post("/forum/new", headers=h, data={
+            "title": "乙帖排序标题", "body": "x", "category": "闲聊"}, follow_redirects=True)
+        # 默认最新发布：乙在前
+        html = self.client.get("/forum").get_data(as_text=True)
+        self.assertLess(html.find("乙帖排序标题"), html.find("甲帖排序标题"))
+        # 回复甲帖后，按最新回复甲帖提前（时间戳秒级精度，需隔 1 秒）
+        import time
+        time.sleep(1.1)
+        self.set_csrf()
+        self.client.post("/api/comment/forum_post/%d" % aid, headers=self.csrf_hdr(),
+                         data={"body": "顶甲帖"})
+        html = self.client.get("/forum?sort=recent_reply").get_data(as_text=True)
+        self.assertLess(html.find("甲帖排序标题"), html.find("乙帖排序标题"))
+        # 分类筛选
+        html = self.client.get("/forum?category=攻略").get_data(as_text=True)
+        self.assertIn("甲帖排序标题", html)
+        self.assertNotIn("乙帖排序标题", html)
+
+    def test_permissions_and_moderation(self):
+        self.register("ownera", "Passw0rd123")
+        pid = self._post(title="权限测试帖标题", who="ownera")
+        self.logout()
+        self.register("otherb", "Passw0rd123")
+        # 他人编辑/删除 → 403
+        self.assertEqual(self.client.get(f"/forum/{pid}/edit").status_code, 403)
+        self.assertEqual(
+            self.client.post(f"/forum/{pid}/delete", headers=self.csrf_hdr()).status_code, 403)
+        # 版主可删除
+        with self.app.app_context():
+            db.execute("UPDATE users SET role='moderator' WHERE username='otherb'")
+        self.assertEqual(
+            self.client.post(f"/forum/{pid}/delete", headers=self.csrf_hdr(),
+                             follow_redirects=False).status_code, 302)
+        # 删除后：详情 404、列表不显示、回复 API 404
+        self.assertEqual(self.client.get(f"/forum/{pid}").status_code, 404)
+        r = self.client.post("/api/comment/forum_post/%d" % pid,
+                             headers=self.csrf_hdr(), data={"body": "x"})
+        self.assertEqual(r.status_code, 404)
+
+    def test_report_forum_post_admin_flow(self):
+        self.register("posta", "Passw0rd123")
+        pid = self._post(title="被举报的帖标题", who="posta")
+        self.logout()
+        self.register("reporta", "Passw0rd123")
+        h = self.csrf_hdr()
+        r = self.client.post("/api/report", headers=h, data={
+            "target_type": "forum_post", "target_id": pid, "reason": "广告灌水"})
+        self.assertEqual(r.status_code, 200)
+        # 管理员看到举报，目标链接指向论坛
+        self.logout()
+        self.make_admin("rootadm", "Passw0rd123")
+        self.login("rootadm", "Passw0rd123")
+        html = self.client.get("/admin/reports").get_data(as_text=True)
+        self.assertIn("帖子：被举报的帖标题", html)
+        self.assertIn(f"/forum/{pid}", html)
+        # 批量隐藏内容并处理
+        rid = str(self.sql("SELECT id FROM reports")[0]["id"])
+        r = self.client.post("/admin/reports/batch", headers=self.csrf_hdr(),
+                             data={"action": "hide_content", "ids": [rid]},
+                             follow_redirects=True)
+        self.assertIn("批量操作完成", r.get_data(as_text=True))
+        self.assertEqual(
+            self.sql("SELECT status FROM forum_posts WHERE id=?", (pid,))[0]["status"], "hidden")
+        # 游客访问隐藏帖 404，版主仍可见
+        self.logout()
+        self.assertEqual(self.client.get(f"/forum/{pid}").status_code, 404)
+
+    def test_missing_post_404(self):
+        self.assertEqual(self.client.get("/forum/999").status_code, 404)
+
+    def test_forum_in_nav_and_sitemap(self):
+        self.register("sitem", "Passw0rd123")
+        self._post(title="站点地图帖子", who="sitem")
+        html = self.client.get("/index").get_data(as_text=True)
+        self.assertIn('href="/forum"', html)
+        xml = self.client.get("/sitemap.xml").get_data(as_text=True)
+        self.assertIn("/forum/", xml)
+
+
 class TestMessages(Base):
     """站内消息：生成、去重、角标时间点机制、分页、隐私、死链处理。"""
 

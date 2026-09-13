@@ -143,6 +143,10 @@ ISSUE_TAGS = {
     "功能建议": "新功能与改进建议",
 }
 
+# 论坛分类（forum_posts.category）
+FORUM_CATEGORIES = ("讨论", "攻略", "求助", "建议", "闲聊")
+DEFAULT_FORUM_CATEGORY = "讨论"
+
 ROLES = ("user", "moderator", "admin")
 
 

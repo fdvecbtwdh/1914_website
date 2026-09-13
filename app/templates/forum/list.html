@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}社区论坛 — {{ site_name }}{% endblock %}
+{% block meta_description %}1914 玩家社区论坛：游戏讨论、玩法攻略、问题求助与建议交流。{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>社区论坛</h1>
+    <span class="sub">共 {{ total }} 个帖子</span>
+    {% if current_user %}
+      <a class="btn btn-brass" href="/forum/new" style="margin-left:auto">✎ 发布帖子</a>
+    {% else %}
+      <a class="btn btn-brass" href="/login?next=/forum/new" style="margin-left:auto">登录后发帖</a>
+    {% endif %}
+  </div>
+
+  <div class="tab-row">
+    <a href="/forum?sort={{ sort }}" {% if not category %}class="active"{% endif %}>全部</a>
+    {% for c in categories %}
+    <a href="/forum?category={{ c }}&sort={{ sort }}" {% if category == c %}class="active"{% endif %}>{{ c }}</a>
+    {% endfor %}
+    <a href="/forum?{% if category %}category={{ category }}&{% endif %}sort={{ 'recent_reply' if sort != 'recent_reply' else 'latest' }}"
+       style="margin-left:auto;color:var(--muted)">↕ {{ '按最新回复' if sort != 'recent_reply' else '按最新发布' }}</a>
+  </div>
+
+  <div class="panel" style="padding:4px 0">
+    {% for p in posts %}
+    <div class="issue-row" style="align-items:center">
+      <span class="badge">{{ p.category }}</span>
+      <div class="grow" style="min-width:0">
+        <a class="issue-title" href="/forum/{{ p.id }}" style="overflow-wrap:anywhere">{{ p.title }}</a>
+        <div class="issue-meta">
+          {{ p.author_name or '已注销' }} · {{ p.created_at|ago }}
+          · 💬 {{ p.reply_count }}
+          {% if p.reply_count %} · 最后回复 {{ p.last_reply_by or '?' }} {{ p.reply_at|ago }}{% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state"><span class="icon">🗣</span>还没有帖子{% if category %}，这个分类下空空如也{% endif %}，来开个头吧。</div>
+    {% endfor %}
+  </div>
+
+  {% if pages > 1 %}
+  <div class="pagination">
+    {%- for p in range(1, pages + 1) -%}
+      {%- if p == page %}<span class="current">{{ p }}</span>
+      {%- else %}<a href="/forum?{% if category %}category={{ category }}&{% endif %}sort={{ sort }}&page={{ p }}">{{ p }}</a>{% endif -%}
+    {%- endfor -%}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

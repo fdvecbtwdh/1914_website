@@ -107,6 +107,16 @@
     };
   }
 
+  /* ---------- 论坛帖子删除（作者/版主） ---------- */
+  document.addEventListener("click", function (e) {
+    const delBtn = e.target.closest(".forum-delete");
+    if (!delBtn) return;
+    if (!confirm("确定删除这个帖子吗？")) return;
+    post("/forum/" + delBtn.dataset.id + "/delete", {})
+      .then(() => { location.href = "/forum"; })
+      .catch((err) => alert(err.message));
+  });
+
   /* ---------- 评论：回复 / 编辑 / 删除 ---------- */
   document.addEventListener("click", function (e) {
     const replyBtn = e.target.closest(".comment-reply");
