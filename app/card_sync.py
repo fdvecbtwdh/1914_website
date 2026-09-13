@@ -9,6 +9,7 @@ from pathlib import Path
 from flask import current_app
 
 from . import db
+from .gameconstants import official_tag_for_version
 
 ALLOWED_FIELDS = {
     "id", "name", "nation", "type", "unit_class", "cost_g", "cost_z",
@@ -69,11 +70,20 @@ def _read_card_json(path: Path) -> dict | None:
     return {k: v for k, v in data.items() if k in ALLOWED_FIELDS}
 
 
+def _game_version() -> str:
+    """当前游戏版本号（网站 .env 的 GAME_VERSION），用于卡牌性质判定。"""
+    if current_app:
+        return current_app.config["GAME_VERSION"]
+    from .config import Config
+    return Config.GAME_VERSION
+
+
 def import_official_cards(game_path: str | None = None) -> dict:
     """把游戏 JSON 导入/更新到网站 cards 表（source='official'）。
     返回 {created: n, updated: n, skipped: n}。
     """
     created = updated = skipped = 0
+    version_tag = official_tag_for_version(_game_version())
     for data in load_game_cards(game_path):
         gid = str(data["id"])
         name = str(data.get("name") or gid)
@@ -81,8 +91,10 @@ def import_official_cards(game_path: str | None = None) -> dict:
         if not isinstance(abilities, list):
             abilities = []
         existing = db.query("SELECT id FROM cards WHERE game_id = ?", (gid,), one=True)
-        # 卡牌性质：ID/名称含测试标记 → 测试卡，否则正式
-        tag = "测试" if ("test" in gid.lower() or "测试" in name) else "正式"
+        # 卡牌性质：按游戏版本判定（v0.* 一律测试，v1.0 起正式）；
+        # ID/名称带显式测试标记的卡在任何版本都保持测试卡。
+        is_test = "test" in gid.lower() or "测试" in name
+        tag = "正式" if (version_tag == "正式" and not is_test) else "测试"
         if existing:
             db.execute(
                 """UPDATE cards SET name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_z=?,

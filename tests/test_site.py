@@ -927,7 +927,8 @@ class TestAdmin(Base):
             self.sql("SELECT COUNT(*) c FROM users WHERE username LIKE 'bdel%'")[0]["c"], 0)
 
     def test_card_tag_official_only(self):
-        """性质仅官方卡有：玩家自制卡无标记；管理员投官方卡可选测试/正式；列表可筛选。"""
+        """性质仅官方卡有：玩家自制卡无标记；管理员投官方卡的性质受游戏版本钳制
+        （v0.* 阶段一律测试卡）；列表可筛选。"""
         # 玩家投稿：即使带 card_tag=测试 也无效 → 无性质
         self.logout()
         self.register("taguser", "Passw0rd123")
@@ -953,7 +954,7 @@ class TestAdmin(Base):
         self.assertEqual(self.sql("SELECT tag FROM cards WHERE id=?", (yid,))[0]["tag"], "测试")
         html = self.client.get(f"/card/{yid}").get_data(as_text=True)
         self.assertIn('data-tag="测试"', html)
-        self.assertIn("测试卡牌：测试时使用的卡牌", html)
+        self.assertIn("测试卡牌：游戏 v0.x 阶段的卡牌", html)
 
         # 列表筛选：测试只有官方测试卡；正式不含它
         html = self.client.get("/cards?card_tag=测试").get_data(as_text=True)
@@ -962,15 +963,35 @@ class TestAdmin(Base):
         html = self.client.get("/cards?card_tag=正式").get_data(as_text=True)
         self.assertNotIn("官方测试卡Y", html)
 
-        # 管理员编辑官方卡改回正式
+        # 管理员编辑官方卡尝试改正式：v0.* 阶段被钳制，仍为测试
         r = self.client.post(f"/card/{yid}/edit", headers=h, data={
+            "name": "官方测试卡Y", "type": "unit", "unit_class": "infantry",
+            "source": "official", "card_tag": "正式"},
+            content_type="multipart/form-data", follow_redirects=True)
+        self.assertEqual(self.sql("SELECT tag FROM cards WHERE id=?", (yid,))[0]["tag"], "测试")
+
+        # 版本切到 v1.0 后，同样的表单值才生效为正式
+        self.app.config["GAME_VERSION"] = "1.0.0"
+        self.client.post(f"/card/{yid}/edit", headers=h, data={
             "name": "官方测试卡Y", "type": "unit", "unit_class": "infantry",
             "source": "official", "card_tag": "正式"},
             content_type="multipart/form-data", follow_redirects=True)
         self.assertEqual(self.sql("SELECT tag FROM cards WHERE id=?", (yid,))[0]["tag"], "正式")
 
     def test_import_tag_heuristic(self):
-        """导入官方卡：ID/名称含 test/测试 → 测试卡，其余正式。"""
+        """导入官方卡：游戏 v0.* 一律测试卡（含显式测试卡）；v1.0 起正式，
+        但显式测试卡（ID 含 test / 名称含 测试）保持测试。"""
+        with self.app.app_context():
+            from app.card_sync import import_official_cards
+            import_official_cards()
+            rows = {r["game_id"]: r["tag"] for r in db.query(
+                "SELECT game_id, tag FROM cards WHERE source='official'")}
+        self.assertEqual(rows["test_infantry_01"], "测试")
+        self.assertEqual(rows["infantry_01"], "测试")
+        self.assertEqual(rows["cavalry_01"], "测试")
+
+        # 游戏进入 v1.0 后重导入：普通卡转正式，显式测试卡保持测试
+        self.app.config["GAME_VERSION"] = "1.0.0"
         with self.app.app_context():
             from app.card_sync import import_official_cards
             import_official_cards()

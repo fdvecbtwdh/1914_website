@@ -1,6 +1,7 @@
 r"""游戏领域常量 — 与 D:\Code\1914 的 data/cards JSON 字段一一对应。
 展示文案来自 docs/game-mechanics.md，不发明游戏中不存在的字段。
 """
+import re
 
 # 单位类型（卡牌 type 字段）
 CARD_TYPES = {
@@ -104,12 +105,22 @@ ISSUE_PRIORITY_COLORS = {
     "critical": "#b03030",
 }
 
-# 卡牌性质（tag 字段）——投稿/导入时选择，悬停或点击徽章显示说明
+# 卡牌性质（tag 字段）——按游戏版本自动判定（见 official_tag_for_version），
+# 悬停或点击徽章显示说明
 CARD_TAGS = {
-    "正式": "正式卡牌：进入游戏正式卡池的卡牌。",
-    "测试": "测试卡牌：测试时使用的卡牌，不代表正式卡牌和样板数据。",
+    "正式": "正式卡牌：游戏 v1.0 起进入正式卡池的卡牌。",
+    "测试": "测试卡牌：游戏 v0.x 阶段的卡牌（含显式测试卡），不代表正式卡牌和样板数据。",
 }
 DEFAULT_CARD_TAG = "正式"
+
+
+def official_tag_for_version(version: str) -> str:
+    """官方卡性质判定：游戏版本号 v0.* 一律为测试卡，v1.0 起才是正式卡。
+    版本号允许 v/V 前缀；无法解析时按未到 v1 处理（测试）。
+    ID/名称带显式测试标记的卡在任何版本都保持测试卡（由调用方叠加判断）。
+    """
+    m = re.match(r"^v?(\d+)", (version or "").strip().lower())
+    return "正式" if (m and int(m.group(1)) >= 1) else "测试"
 
 # Issue 所属（决定 GitHub 同步分流到哪个仓库）
 ISSUE_COMPONENTS = {

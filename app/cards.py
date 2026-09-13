@@ -1,13 +1,20 @@
 """卡牌社区 — 列表 / 搜索 / 详情 / 投稿 / 编辑 / 投稿预览。"""
 import json
 
-from flask import (Blueprint, abort, flash, make_response, redirect,
+from flask import (Blueprint, abort, current_app, flash, make_response, redirect,
                    render_template, request, url_for)
 
 from . import db, auth, interactions, uploads
 from .gameconstants import (CARD_TYPES, UNIT_CLASSES, RARITIES, NATIONS, CARD_TAGS,
-                            DEFAULT_CARD_TAG,
+                            DEFAULT_CARD_TAG, official_tag_for_version,
                             ABILITIES, ability_name, ability_level)
+
+
+def _official_tag(chosen: str | None) -> str:
+    """官方卡性质：表单值仅在游戏 v1.0+ 时生效；v0.* 阶段一律测试卡。"""
+    if official_tag_for_version(current_app.config["GAME_VERSION"]) != "正式":
+        return "测试"
+    return chosen if chosen in CARD_TAGS else DEFAULT_CARD_TAG
 
 bp = Blueprint("cards", __name__, url_prefix="")
 
@@ -247,7 +254,7 @@ def card_new():
                  fields["vision_range"], fields["attack_range"], fields["abilities"],
                  fields["rarity"], art_url, fields["flavor_text"], fields["description"],
                  user["id"], source,
-                 fields["card_tag"] if source == "official" else ""))
+                 _official_tag(fields["card_tag"]) if source == "official" else ""))
             _set_labels("card", card_id, request.form.get("tags", ""))
             auth.audit("card_create", "card", card_id, fields["name"])
             flash("官方卡牌投稿成功！" if source == "official" else "卡牌投稿成功！", "success")
@@ -327,10 +334,9 @@ def card_edit(card_id: int):
             new_source = row["source"]
             if is_admin and request.form.get("source") in ("official", "community"):
                 new_source = request.form["source"]
-            # 性质仅对官方卡有意义：自制卡清空；官方卡取表单值（无效回退正式）
+            # 性质仅对官方卡有意义：自制卡清空；官方卡取表单值（v0.* 阶段强制测试）
             if new_source == "official":
-                new_tag = request.form.get("card_tag")
-                fields["card_tag"] = new_tag if new_tag in CARD_TAGS else DEFAULT_CARD_TAG
+                fields["card_tag"] = _official_tag(request.form.get("card_tag"))
             else:
                 fields["card_tag"] = ""
             slug = _unique_slug(fields["name"], exclude_id=card_id)

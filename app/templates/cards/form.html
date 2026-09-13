@@ -55,6 +55,7 @@
             <option value="正式" {% if cur_tag == '正式' %}selected{% endif %}>正式 — 进入正式卡池的卡牌</option>
             <option value="测试" {% if cur_tag == '测试' %}selected{% endif %}>测试 — 测试用，不代表正式卡牌和样板数据</option>
           </select>
+          <p class="md-hint">性质按游戏版本自动判定：v0.x 均为测试卡，v1.0 起才可为正式卡（当前 {{ game_version }}）。</p>
         </div>
         <div>
           <label>稀有度 *</label>
