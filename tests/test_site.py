@@ -2008,6 +2008,24 @@ class TestMuteBan(Base):
         self.assertEqual(self.sql(
             "SELECT is_banned FROM users WHERE id=?", (uid,))[0]["is_banned"], 0)
 
+    def test_expired_mute_not_shown_as_active(self):
+        """过期禁言：后台状态与 Dashboard 不再计为禁言中，用户立即可发言。"""
+        self.register("muted6", "Passw0rd123")
+        uid = self._uid("muted6")
+        self._admin_login()
+        self._mute(uid, duration_value=1, duration_unit="hour")
+        self.sql("UPDATE users SET mute_until='2000-01-01 00:00:00' WHERE id=?", (uid,))
+        html = self.client.get("/admin/users").get_data(as_text=True)
+        self.assertNotIn("禁言中", html)
+        # 用户立即可发言
+        self.logout()
+        self.login("muted6", "Passw0rd123")
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "过期禁言后投稿", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        self.assertEqual(self.sql(
+            "SELECT COUNT(*) c FROM cards WHERE name='过期禁言后投稿'")[0]["c"], 1)
+
     def test_admin_users_page_shows_mute_and_ban_status(self):
         self.register("shown", "Passw0rd123")
         uid = self._uid("shown")

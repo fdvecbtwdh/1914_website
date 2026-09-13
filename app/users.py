@@ -1,7 +1,7 @@
 """用户公开主页 — 只公开安全字段，绝不暴露邮箱/IP/角色/会话。"""
 from flask import Blueprint, abort, render_template, request
 
-from . import db, auth, interactions
+from . import db, auth
 
 bp = Blueprint("users", __name__, url_prefix="")
 

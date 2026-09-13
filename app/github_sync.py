@@ -71,7 +71,6 @@ def _gh_request(method: str, url: str, token: str, payload: dict | None = None,
 
 
 def _issue_payload(issue) -> dict:
-    from .markdown_utils import excerpt
     labels = db.query(
         """SELECT l.name FROM content_labels cl JOIN labels l ON l.id = cl.label_id
            WHERE cl.content_type = 'issue' AND cl.content_id = ?""", (issue["id"],))

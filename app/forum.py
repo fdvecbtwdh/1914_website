@@ -42,25 +42,20 @@ def list_posts():
 
     base = f"""FROM forum_posts f
         LEFT JOIN users u ON u.id = f.author_id
-        LEFT JOIN (SELECT target_id, COUNT(*) rc, MAX(created_at) reply_at
-          FROM comments WHERE target_type = 'forum_post' AND is_deleted = 0
-          GROUP BY target_id) r ON r.target_id = f.id
+        LEFT JOIN (SELECT cm.target_id, COUNT(*) rc, MAX(cm.created_at) reply_at,
+            (SELECT cu.username FROM comments cm2 JOIN users cu ON cu.id = cm2.author_id
+             WHERE cm2.target_type = 'forum_post' AND cm2.target_id = cm.target_id
+               AND cm2.is_deleted = 0
+             ORDER BY cm2.created_at DESC, cm2.id DESC LIMIT 1) AS last_reply_by
+          FROM comments cm WHERE cm.target_type = 'forum_post' AND cm.is_deleted = 0
+          GROUP BY cm.target_id) r ON r.target_id = f.id
         WHERE {where_sql}"""
     total = db.query(f"SELECT COUNT(*) AS n {base}", tuple(args), one=True)["n"]
     rows = db.query(
         f"""SELECT f.*, u.username AS author_name, IFNULL(r.rc, 0) AS reply_count,
-            r.reply_at {base} ORDER BY {order} LIMIT ? OFFSET ?""",
+            r.reply_at, r.last_reply_by {base} ORDER BY {order} LIMIT ? OFFSET ?""",
         (*args, PAGE_SIZE, (page - 1) * PAGE_SIZE))
-
-    posts = []
-    for row in rows:
-        d = dict(row)
-        last = db.query(
-            """SELECT u.username FROM comments cm JOIN users u ON u.id = cm.author_id
-               WHERE cm.target_type = 'forum_post' AND cm.target_id = ? AND cm.is_deleted = 0
-               ORDER BY cm.created_at DESC, cm.id DESC LIMIT 1""", (d["id"],), one=True)
-        d["last_reply_by"] = last["username"] if last else None
-        posts.append(d)
+    posts = [dict(r) for r in rows]
 
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("forum/list.html", posts=posts, total=total, page=page,
@@ -93,7 +88,6 @@ def new_post():
         if values is None:
             return render_template("forum/form.html", categories=FORUM_CATEGORIES,
                                    form_values=request.form, post=None, editing=False), 400
-        from .markdown_utils import render_markdown
         pid = db.execute(
             """INSERT INTO forum_posts (title, body, category, author_id)
                VALUES (?,?,?,?)""",

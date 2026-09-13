@@ -54,7 +54,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     # ---- 模板全局 ----
     from .gameconstants import (RANGES, ABILITIES, NATIONS, UNIT_CLASSES,
                                 UNIT_CLASS_ICONS, RARITIES, CARD_TYPES, CARD_TAGS)
-    from flask import render_template as _rt
 
     @app.context_processor
     def inject_globals():

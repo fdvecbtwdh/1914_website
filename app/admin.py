@@ -85,7 +85,9 @@ def index():
             "SELECT COUNT(*) AS n FROM issues WHERE created_at >= date('now')",
             one=True)["n"],
         "muted": db.query(
-            "SELECT COUNT(*) AS n FROM users WHERE mute_until IS NOT NULL", one=True)["n"],
+            "SELECT COUNT(*) AS n FROM users WHERE mute_until IS NOT NULL "
+            "AND (mute_until = 'permanent' OR mute_until > datetime('now'))",
+            one=True)["n"],
         "temp_banned": db.query(
             "SELECT COUNT(*) AS n FROM users WHERE is_banned=1 AND ban_until IS NOT NULL",
             one=True)["n"],
@@ -198,7 +200,10 @@ def users():
     total = db.query(f"SELECT COUNT(*) AS n FROM users WHERE {where_sql}",
                      args, one=True)["n"]
     rows = db.query(
-        f"""SELECT u.*, (SELECT COUNT(*) FROM cards c WHERE c.author_id = u.id) AS card_count,
+        f"""SELECT u.*,
+           (u.mute_until IS NOT NULL AND (u.mute_until = 'permanent'
+              OR u.mute_until > datetime('now'))) AS mute_active,
+           (SELECT COUNT(*) FROM cards c WHERE c.author_id = u.id) AS card_count,
            (SELECT COUNT(*) FROM issues i WHERE i.author_id = u.id) AS issue_count
            FROM users u WHERE {where_sql} ORDER BY u.id DESC LIMIT ? OFFSET ?""",
         (*args, PAGE_SIZE, offset))

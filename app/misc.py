@@ -1,11 +1,8 @@
 """杂项路由 — 首页 / 关于 / 统一搜索 / 上传文件服务 / SEO (sitemap, robots) / 报告处理。"""
-import time
-
-from flask import (Blueprint, abort, render_template, request, send_from_directory,
+from flask import (Blueprint, render_template, request, send_from_directory,
                    current_app, Response)
 
-from . import db, auth, interactions
-from .gameconstants import ISSUE_STATUSES
+from . import db, auth
 
 bp = Blueprint("misc", __name__)
 

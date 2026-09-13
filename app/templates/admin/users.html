@@ -68,7 +68,7 @@
           <span class="badge badge-red">{% if u.ban_until %}临时封禁{% else %}已封禁{% endif %}</span>
           {% if u.ban_until %}<div class="row-sub">至 {{ u.ban_until|dt }}</div>{% endif %}
           {% if u.banned_reason %}<div class="row-sub">原因：{{ u.banned_reason }}</div>{% endif %}
-        {% elif u.mute_until %}
+        {% elif u.mute_active %}
           <span class="badge badge-brass">禁言中</span>
           {% if u.mute_until == 'permanent' %}<div class="row-sub">永久</div>
           {% else %}<div class="row-sub">至 {{ u.mute_until|dt }}</div>{% endif %}
