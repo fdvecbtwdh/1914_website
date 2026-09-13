@@ -1645,6 +1645,31 @@ class TestProfileRepliesAndReports(Base):
         self.assertEqual(r.status_code, 200)
 
 
+class TestOrderCardCost(Base):
+    """指令卡费用显示指挥点 K，单位卡显示战争点 Z（同一存储字段按类型展示）。"""
+
+    def test_order_vs_unit_cost_display(self):
+        self.make_admin("rooty3", "Passw0rd123")
+        self.login("rooty3", "Passw0rd123")
+        h = self.csrf_hdr()
+        self.client.post("/cards/new", headers=h, data={
+            "name": "测试指令卡", "type": "order", "cost_z": 2},
+            content_type="multipart/form-data", follow_redirects=True)
+        oid = self.sql("SELECT id FROM cards WHERE name='测试指令卡'")[0]["id"]
+        html = self.client.get(f"/card/{oid}").get_data(as_text=True)
+        self.assertIn("指挥点 (K)", html)
+        self.assertIn("K 2", html)
+        self.assertNotIn("战争点 (Z)", html)
+        self.client.post("/cards/new", headers=h, data={
+            "name": "测试单位卡", "type": "unit", "unit_class": "infantry", "cost_z": 3},
+            content_type="multipart/form-data", follow_redirects=True)
+        uid = self.sql("SELECT id FROM cards WHERE name='测试单位卡'")[0]["id"]
+        html = self.client.get(f"/card/{uid}").get_data(as_text=True)
+        self.assertIn("战争点 (Z)", html)
+        self.assertIn("✦ 3", html)
+        self.assertNotIn("指挥点 (K)", html)
+
+
 class TestMessages(Base):
     """站内消息：生成、去重、角标时间点机制、分页、隐私、死链处理。"""
 

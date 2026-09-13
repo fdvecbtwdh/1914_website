@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS cards (
     type         TEXT    NOT NULL DEFAULT 'unit',  -- unit / order
     unit_class   TEXT    NOT NULL DEFAULT '',      -- infantry/cavalry/tank/fighter/bomber/artillery/fortification
     cost_g       INTEGER NOT NULL DEFAULT 0,
-    cost_z       INTEGER NOT NULL DEFAULT 0,
+    cost_z       INTEGER NOT NULL DEFAULT 0,  -- 单位=部署战争点 Z；指令卡=使用指挥点 K
     attack       INTEGER NOT NULL DEFAULT 0,
     defense      INTEGER NOT NULL DEFAULT 0,
     vision_range TEXT    NOT NULL DEFAULT '',

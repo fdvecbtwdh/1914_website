@@ -61,7 +61,11 @@
         <table class="meta-table">
           <tr><td>类型</td><td>{{ card.type_label }}{% if card.unit_class %} · {{ card.class_label }}{% endif %}</td></tr>
           <tr><td>生产费用</td><td>⚙ {{ card.cost_g }} 经济 (G)</td></tr>
+          {% if card.type == 'order' %}
+          <tr><td>使用费用</td><td>K {{ card.cost_z }} 指挥点 (K)</td></tr>
+          {% else %}
           <tr><td>部署费用</td><td>✦ {{ card.cost_z }} 战争点 (Z)</td></tr>
+          {% endif %}
           <tr><td>攻击 / 防御</td><td><b style="color:#e08a7a">{{ card.attack }}</b> / <b style="color:#8fb0d8">{{ card.defense }}</b></td></tr>
           <tr><td>视野范围</td><td>{{ ranges.get(card.vision_range, card.vision_range or '—') }}</td></tr>
           <tr><td>攻击范围</td><td>{{ ranges.get(card.attack_range, card.attack_range or '—') }}</td></tr>

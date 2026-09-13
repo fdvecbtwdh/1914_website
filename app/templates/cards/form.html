@@ -79,7 +79,7 @@
                  value="{{ form_values.cost_g if form_values else (card.cost_g if card else 30) }}">
         </div>
         <div>
-          <label>部署战争点 Z</label>
+          <label id="cost-z-label">部署战争点 Z</label>
           <input type="number" name="cost_z" min="0" max="99"
                  value="{{ form_values.cost_z if form_values else (card.cost_z if card else 1) }}">
         </div>

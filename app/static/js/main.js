@@ -339,7 +339,12 @@
       if (!preview) return;
       preview.querySelector(".gcard-name").textContent = val("name") || "卡牌名称";
       preview.querySelector(".cost-g").innerHTML = "⚙ " + (val("cost_g") || "0");
-      preview.querySelector(".cost-k").innerHTML = "✦ " + (val("cost_z") || "0");
+      const isOrder = val("type") === "order";
+      const zk = preview.querySelector(".cost-k");
+      zk.innerHTML = (isOrder ? "K " : "✦ ") + (val("cost_z") || "0");
+      zk.title = isOrder ? "使用指挥点 K" : "部署战争点 Z";
+      const zLabel = document.getElementById("cost-z-label");
+      if (zLabel) zLabel.textContent = isOrder ? "使用指挥点 K" : "部署战争点 Z";
       preview.querySelector(".stat-atk").textContent = val("attack") || "0";
       preview.querySelector(".stat-def").textContent = val("defense") || "0";
       const rangeEl = preview.querySelector(".gcard-range");
