@@ -94,6 +94,12 @@ def _text(d: dict) -> str:
     actor = d["actor_name"] or "已注销用户"
     if d["type"] == "card_comment":
         return f"{actor} 评论了你的卡牌" + (f"《{d['card_name']}》" if d["card_name"] else "（该内容已被删除）")
+    if d["type"] == "user_mute":
+        return d["detail"] or "你已被禁言"
+    if d["type"] == "user_unmute":
+        return d["detail"] or "你的禁言已被管理员解除"
+    if d["type"] == "user_ban":
+        return d["detail"] or "你的账号已被封禁"
     if d["type"] == "forum_reply":
         return f"{actor} 回复了你的帖子" + (f"《{d['forum_title']}》" if d["forum_title"] else "（该内容已被删除）")
     if d["type"] == "comment_mention":

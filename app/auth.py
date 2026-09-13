@@ -136,6 +136,49 @@ def _load_current_user() -> None:
         session.clear()
 
 
+def remaining_text(seconds: int) -> str:
+    """剩余时间的友好格式。"""
+    if seconds < 60:
+        return "不到 1 分钟"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} 分钟"
+    hours = minutes // 60
+    if hours < 48:
+        return f"{hours} 小时 {minutes % 60} 分钟"
+    days = seconds // 86400
+    return f"{days} 天 {hours % 24} 小时"
+
+
+def active_mute(user) -> dict | None:
+    """禁言状态（服务器时间判断，到期自动视为解除）。
+    user 需含 mute_until/mute_reason 字段；未禁言/已到期返回 None。
+    """
+    until = user["mute_until"] if user is not None else None
+    if not until:
+        return None
+    reason = user["mute_reason"] or "未填写"
+    if until == "permanent":
+        return {"permanent": True, "reason": reason, "until": None, "remaining_text": None}
+    try:
+        exp = datetime.strptime(until[:19], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    left = int((exp - _utcnow()).total_seconds())
+    if left <= 0:
+        return None
+    return {"permanent": False, "reason": reason, "until": until,
+            "remaining_text": remaining_text(left)}
+
+
+def mute_notice(mute: dict) -> str:
+    """给被禁言用户的完整提示文案（含原因与解除时间）。"""
+    if mute["permanent"]:
+        return f"你已被永久禁言。原因：{mute['reason']}"
+    return (f"你目前处于禁言状态，{mute['remaining_text']}后解除（{mute['until']}）。"
+            f"原因：{mute['reason']}")
+
+
 def current_user():
     _load_current_user()
     return g.current_user
@@ -343,27 +386,49 @@ def login():
         user = db.query(
             "SELECT * FROM users WHERE username = ? OR email = ?", (ident, ident.lower()),
             one=True)
-        if user is None or user["is_banned"]:
+        if user is None:
+            register_login_failure("login", ident)
+            register_login_failure("login", ip)
+            flash("用户名或密码错误", "danger")
+            return render_template("auth/login.html", username=ident, password=password)
+        if not verify_password(user["password_hash"], password):
             register_login_failure("login", ident)
             register_login_failure("login", ip)
             flash("用户名或密码错误", "danger")
             # 保留输入，方便直接改密码重试
             return render_template("auth/login.html", username=ident, password=password)
-        elif not verify_password(user["password_hash"], password):
-            register_login_failure("login", ident)
-            register_login_failure("login", ip)
-            flash("用户名或密码错误", "danger")
-            return render_template("auth/login.html", username=ident, password=password)
-        else:
-            clear_login_failures("login", ident)
-            clear_login_failures("login", ip)
-            db.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?",
-                       (user["id"],))
-            create_session(user["id"])
-            audit("login", "user", user["id"], user["username"])
-            dest = request.args.get("next") or url_for("misc.home")
-            flash(f"欢迎回来，{user['username']}！", "success")
-            return redirect(_safe_next(dest))
+        if user["is_banned"]:
+            # 临时封禁到期：登录时自动解封（无定时任务）
+            until = user["ban_until"]
+            expired = False
+            if until:
+                try:
+                    expired = datetime.strptime(until[:19], "%Y-%m-%d %H:%M:%S") <= _utcnow()
+                except ValueError:
+                    expired = False
+            if expired:
+                db.execute("UPDATE users SET is_banned=0, ban_until=NULL, banned_reason=NULL "
+                           "WHERE id=?", (user["id"],))
+                audit("ban_auto_expire", "user", user["id"], user["username"])
+                user = db.query(
+                    "SELECT * FROM users WHERE username = ? OR email = ?",
+                    (ident, ident.lower()), one=True)
+            else:
+                notice = "账号已被封禁" if not until else f"账号已被临时封禁，至 {until[:16]} 解封"
+                if user["banned_reason"]:
+                    notice += f"。原因：{user['banned_reason']}"
+                audit("login_banned", "user", user["id"], user["username"])
+                return render_template("auth/login.html", username=ident,
+                                       ban_notice=notice), 403
+        clear_login_failures("login", ident)
+        clear_login_failures("login", ip)
+        db.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?",
+                   (user["id"],))
+        create_session(user["id"])
+        audit("login", "user", user["id"], user["username"])
+        dest = request.args.get("next") or url_for("misc.home")
+        flash(f"欢迎回来，{user['username']}！", "success")
+        return redirect(_safe_next(dest))
     return render_template("auth/login.html")
 
 

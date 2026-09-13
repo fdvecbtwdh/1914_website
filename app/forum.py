@@ -72,6 +72,10 @@ def list_posts():
 def new_post():
     if request.method == "POST":
         auth.check_csrf()
+        mute = auth.active_mute(auth.current_user())
+        if mute:
+            flash(auth.mute_notice(mute), "danger")
+            return redirect(url_for("forum.list_posts"))
         values = _validate()
         if values is None:
             return render_template("forum/form.html", categories=FORUM_CATEGORIES,
@@ -110,6 +114,10 @@ def edit_post(post_id: int):
         abort(403)
     if request.method == "POST":
         auth.check_csrf()
+        mute = auth.active_mute(user)
+        if mute:
+            flash(auth.mute_notice(mute), "danger")
+            return redirect(url_for("forum.detail", post_id=post_id))
         values = _validate()
         if values is None:
             return render_template("forum/form.html", categories=FORUM_CATEGORIES,

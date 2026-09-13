@@ -20,7 +20,7 @@
     <div class="msg-row">
       {% if n.url %}
       <a class="msg-link" href="{{ n.url }}">
-        <span class="msg-text"><b>{{ n.actor_name or '已注销用户' }}</b>{{ role_badge(n.actor_role) }} {{ n.text }}</span>
+        <span class="msg-text">{% if n.type.startswith('user_') %}{{ n.text }}{% else %}<b>{{ n.actor_name or '已注销用户' }}</b>{{ role_badge(n.actor_role) }} {{ n.text }}{% endif %}</span>
         <span class="msg-time">{{ n.created_at|ago }}</span>
       </a>
       {% else %}

@@ -52,6 +52,14 @@
   </div>
 </header>
 
+{% if current_mute %}
+<div class="flashes">
+  <div class="flash flash-danger">
+    🔇 {% if current_mute.permanent %}你已被永久禁言{% else %}你目前处于禁言状态，剩余 {{ current_mute.remaining_text }}（{{ current_mute.until }} 解除）{% endif %}。原因：{{ current_mute.reason }}
+  </div>
+</div>
+{% endif %}
+
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
   <div class="flashes">

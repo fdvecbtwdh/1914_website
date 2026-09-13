@@ -120,6 +120,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if ncols and "forum_post_id" not in ncols:
         # 论坛回复通知需要指向论坛帖子
         conn.execute("ALTER TABLE notifications ADD COLUMN forum_post_id INTEGER")
+    if ncols and "detail" not in ncols:
+        # 系统类消息（处罚通知）的直接文案
+        conn.execute("ALTER TABLE notifications ADD COLUMN detail TEXT")
+    ucols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
+    if ucols:
+        for col, ddl in (("mute_until", "TEXT"), ("mute_reason", "TEXT"),
+                         ("ban_until", "TEXT"), ("banned_reason", "TEXT")):
+            if col not in ucols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
     qcols = [r[1] for r in conn.execute("PRAGMA table_info(sync_queue)")]
     if qcols and "repo" not in qcols:
         # 旧库的同步队列表缺 repo 列（按 Issue 所属分流目标仓库），

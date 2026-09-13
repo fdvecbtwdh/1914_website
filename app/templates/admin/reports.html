@@ -49,7 +49,13 @@
       <td class="chk"><input type="checkbox" name="ids" value="{{ r.id }}" form="reports-batch"></td>
       <td class="mono">{{ r.id }}</td>
       <td>{{ r.reporter_name or '已注销' }}</td>
-      <td>{% if r.target %}<a href="{{ r.target.url }}">{{ r.target.label }}</a>{% else %}<span style="color:var(--muted)">目标已删除 ({{ r.target_type }} #{{ r.target_id }})</span>{% endif %}</td>
+      <td>
+        {% if r.target %}<a href="{{ r.target.url }}">{{ r.target.label }}</a>{% else %}<span style="color:var(--muted)">目标已删除 ({{ r.target_type }} #{{ r.target_id }})</span>{% endif %}
+        {% if r.target and r.target.author_id and current_user and r.target.author_id != current_user['id'] %}
+        <button type="button" class="btn btn-sm mute-dialog-btn" data-uid="{{ r.target.author_id }}"
+                data-name="{{ r.target.author_name or r.target.author_id }}">禁言作者</button>
+        {% endif %}
+      </td>
       <td style="max-width:260px">{{ r.reason }}</td>
       <td>
         {% if r.status == 'open' %}<span class="badge badge-red">待处理</span>
@@ -73,6 +79,37 @@
     <tr><td colspan="8" class="empty-state"><span class="icon">🕊</span>暂无举报</td></tr>
     {% endfor %}
   </table>
+
+  <datalist id="penalty-reason-list">
+    <option value="发布违规内容"></option>
+    <option value="恶意刷屏"></option>
+    <option value="人身攻击"></option>
+    <option value="广告/垃圾信息"></option>
+    <option value="违反社区规则"></option>
+  </datalist>
+
+  <dialog id="mute-dialog" class="report-dialog">
+    <h3 style="margin-top:0;color:var(--brass-bright)">禁言用户 <span data-name></span></h3>
+    <label style="display:block;font-size:.9rem;margin-bottom:6px">禁言原因 *（必填）</label>
+    <input type="text" data-reason list="penalty-reason-list" style="width:100%;margin-bottom:10px">
+    <label style="display:block;font-size:.9rem;margin-bottom:6px">禁言时长</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <input type="number" data-duration min="1" value="3" style="width:90px">
+      <select data-unit>
+        <option value="hour">小时</option>
+        <option value="day" selected>天</option>
+        <option value="week">周</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:4px;font-size:.9rem">
+        <input type="checkbox" data-permanent> 永久
+      </label>
+    </div>
+    <p class="md-hint">到期自动解除；同时会通过站内消息告知对方。</p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+      <button type="button" class="btn btn-sm" data-close>取消</button>
+      <button type="button" class="btn btn-danger btn-sm" data-submit>确认禁言</button>
+    </div>
+  </dialog>
 
   {% if pages > 1 %}
   <div class="pagination">

@@ -4,16 +4,22 @@
 from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 
+from datetime import datetime, timedelta
+
+from flask import (Blueprint, abort, flash, make_response, redirect,
+                   render_template, request, url_for)
+
 from . import db, auth
 from .gameconstants import (ISSUE_STATUSES, ISSUE_PRIORITIES, CARD_TYPES,
                             RARITIES, UNIT_CLASSES)
+from .notify import notify
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 PAGE_SIZE = 30
 
 USER_ROLES = ("user", "moderator", "admin")
-REPORT_TARGETS = ("card", "issue", "comment", "user")
+REPORT_TARGETS = ("card", "issue", "comment", "user", "forum_post")
 
 
 @bp.before_request
@@ -102,6 +108,50 @@ def users():
                            q=q, role=role, status=status)
 
 
+@bp.route("/users/<int:user_id>/mute", methods=["POST"])
+def user_mute(user_id: int):
+    auth.check_csrf()
+    me = auth.current_user()
+    if user_id == me["id"]:
+        flash("不能对自己执行管理操作", "warning")
+        return _back("admin.users")
+    target = db.query("SELECT id, username FROM users WHERE id = ?", (user_id,), one=True)
+    if target is None:
+        abort(404)
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("禁言必须填写原因", "danger")
+        return _back("admin.users")
+    label = _apply_mute(user_id, reason,
+                        request.form.get("permanent") == "1",
+                        request.form.get("duration_value", type=int) or 0,
+                        request.form.get("duration_unit", "day"), me["id"])
+    auth.audit("user_mute", "user", user_id,
+               f"{target['username']} {label} 原因：{reason}")
+    flash(f"已禁言 {target['username']}（{label}）", "success")
+    return _back("admin.users")
+
+
+@bp.route("/users/<int:user_id>/unmute", methods=["POST"])
+def user_unmute(user_id: int):
+    auth.check_csrf()
+    me = auth.current_user()
+    target = db.query("SELECT id, username FROM users WHERE id = ?", (user_id,), one=True)
+    if target is None:
+        abort(404)
+    db.execute("UPDATE users SET mute_until = NULL, mute_reason = NULL WHERE id = ?",
+               (user_id,))
+    db.execute("UPDATE penalties SET lifted_at = datetime('now'), lifted_by = ? "
+               "WHERE user_id = ? AND type = 'mute' AND lifted_at IS NULL",
+               (me["id"], user_id))
+    auth.audit("user_unmute", "user", user_id, target["username"])
+    notify(user_id, me["id"], "user_unmute",
+           detail="你的禁言已被管理员解除，现在可以正常发言。",
+           dedup_anchor=f"unmute{user_id}")
+    flash(f"已解除 {target['username']} 的禁言", "success")
+    return _back("admin.users")
+
+
 @bp.route("/users/batch", methods=["POST"])
 def users_batch():
     auth.check_csrf()
@@ -109,6 +159,10 @@ def users_batch():
     action = request.form.get("action", "")
     if not _batch_guard(action, ids, {"ban", "unban", "set_user", "set_moderator",
                                       "set_admin", "delete"}):
+        return _back("admin.users")
+    batch_reason = (request.form.get("batch_reason") or "").strip()
+    if action == "ban" and not batch_reason:
+        flash("批量封禁必须填写原因", "danger")
         return _back("admin.users")
     me = auth.current_user()
     done = skipped = 0
@@ -121,8 +175,7 @@ def users_batch():
             skipped += 1
             continue
         if action == "ban":
-            db.execute("UPDATE users SET is_banned = 1 WHERE id = ?", (uid,))
-            auth.revoke_all_sessions(uid)
+            _apply_ban(uid, batch_reason, True, 0, "day", me["id"])
         elif action == "unban":
             db.execute("UPDATE users SET is_banned = 0 WHERE id = ?", (uid,))
         elif action == "delete":
@@ -140,6 +193,65 @@ def users_batch():
     return _back("admin.users")
 
 
+DUR_UNITS = {"hour": ("小时", 3600), "day": ("天", 86400), "week": ("周", 604800)}
+
+
+def _duration_label(permanent: bool, value: int, unit: str) -> str:
+    if permanent:
+        return "永久"
+    unit_label = DUR_UNITS.get(unit, ("天", 86400))[0]
+    return f"{value} {unit_label}"
+
+
+def _apply_mute(uid: int, reason: str, permanent: bool, value: int, unit: str,
+                actor: int) -> str:
+    """写入禁言状态 + 处罚记录（新处罚覆盖旧禁言并解除旧记录）。返回时长描述。"""
+    label = _duration_label(permanent, value, unit)
+    if permanent:
+        until, expires, flag = "permanent", None, 1
+    else:
+        seconds = max(1, value) * DUR_UNITS.get(unit, ("", 86400))[1]
+        until = (datetime.utcnow() + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S")
+        expires, flag = until, 0
+    db.execute("UPDATE users SET mute_until=?, mute_reason=? WHERE id=?",
+               (until, reason, uid))
+    penalty = db.execute(
+        """INSERT INTO penalties (user_id, type, reason, permanent, expires_at, created_by)
+           VALUES (?,?,?,?,?,?)""", (uid, "mute", reason, flag, expires, actor))
+    db.execute("UPDATE penalties SET lifted_at=datetime('now'), lifted_by=? "
+               "WHERE user_id=? AND type='mute' AND id != ? AND lifted_at IS NULL",
+               (actor, uid, penalty))
+    detail = (f"你已被永久禁言。原因：{reason}" if permanent else
+              f"你已被禁言 {label}。原因：{reason}。解除时间：{until}。")
+    notify(uid, actor, "user_mute", detail=detail, dedup_anchor=f"p{penalty}")
+    return label
+
+
+def _apply_ban(uid: int, reason: str, permanent: bool, value: int, unit: str,
+               actor: int) -> str:
+    """写入封禁状态 + 处罚记录（临时封禁到期后登录时自动解封）。返回时长描述。"""
+    label = _duration_label(permanent, value, unit)
+    if permanent:
+        ban_until, expires, flag = None, None, 1
+    else:
+        seconds = max(1, value) * DUR_UNITS.get(unit, ("", 86400))[1]
+        ban_until = (datetime.utcnow() + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S")
+        expires, flag = ban_until, 0
+    db.execute("UPDATE users SET is_banned=1, ban_until=?, banned_reason=? WHERE id=?",
+               (ban_until, reason, uid))
+    auth.revoke_all_sessions(uid)
+    penalty = db.execute(
+        """INSERT INTO penalties (user_id, type, reason, permanent, expires_at, created_by)
+           VALUES (?,?,?,?,?,?)""", (uid, "ban", reason, flag, expires, actor))
+    db.execute("UPDATE penalties SET lifted_at=datetime('now'), lifted_by=? "
+               "WHERE user_id=? AND type='ban' AND id != ? AND lifted_at IS NULL",
+               (actor, uid, penalty))
+    detail = (f"你的账号已被封禁。原因：{reason}" if permanent else
+              f"你的账号已被临时封禁 {label}。原因：{reason}。解封时间：{ban_until}。")
+    notify(uid, actor, "user_ban", detail=detail, dedup_anchor=f"p{penalty}")
+    return label
+
+
 @bp.route("/users/<int:user_id>/action", methods=["POST"])
 def user_action(user_id: int):
     auth.check_csrf()
@@ -152,12 +264,26 @@ def user_action(user_id: int):
         abort(404)
     action = request.form.get("action", "")
     if action == "ban":
-        db.execute("UPDATE users SET is_banned = 1 WHERE id = ?", (user_id,))
-        auth.revoke_all_sessions(user_id)
-        auth.audit("user_ban", "user", user_id, target["username"])
-        flash(f"已封禁 {target['username']}", "success")
+        reason = (request.form.get("reason") or "").strip()
+        if not reason:
+            flash("封禁必须填写原因", "danger")
+            return redirect(url_for("admin.users"))
+        permanent = request.form.get("permanent") == "1"
+        value = request.form.get("duration_value", type=int) or 0
+        unit = request.form.get("duration_unit", "day")
+        label = _apply_ban(user_id, reason, permanent, value, unit, me["id"])
+        auth.audit("user_ban", "user", user_id,
+                   f"{target['username']} {label} 原因：{reason}")
+        flash(f"已封禁 {target['username']}（{label}）", "success")
     elif action == "unban":
-        db.execute("UPDATE users SET is_banned = 0 WHERE id = ?", (user_id,))
+        db.execute("UPDATE users SET is_banned = 0, ban_until = NULL, "
+                   "banned_reason = NULL WHERE id = ?", (user_id,))
+        db.execute("UPDATE penalties SET lifted_at = datetime('now'), lifted_by = ? "
+                   "WHERE user_id = ? AND type = 'ban' AND lifted_at IS NULL",
+                   (me["id"], user_id))
+        notify(user_id, me["id"], "user_unban",
+               detail="你的账号已被解封，现在可以正常发言。",
+               dedup_anchor=f"unban{user_id}")
         auth.audit("user_unban", "user", user_id, target["username"])
         flash(f"已解封 {target['username']}", "success")
     elif action == "delete":
@@ -441,15 +567,26 @@ def comment_action(comment_id: int):
 
 # ---------- 举报处理 ----------
 
-def _hide_reported_content(target_type: str, target_id: int) -> None:
+def _hide_reported_content(target_type: str, target_id: int,
+                           reason: str = "", actor: int | None = None) -> None:
     if target_type == "card":
         db.execute("UPDATE cards SET status='hidden' WHERE id = ?", (target_id,))
     elif target_type == "comment":
         db.execute("UPDATE comments SET is_deleted=1, body='', body_html='' WHERE id=?",
                    (target_id,))
     elif target_type == "user":
-        db.execute("UPDATE users SET is_banned=1 WHERE id = ?", (target_id,))
+        reason = reason or "举报处理"
+        db.execute("UPDATE users SET is_banned=1, banned_reason=? WHERE id = ?",
+                   (reason, target_id))
         auth.revoke_all_sessions(target_id)
+        penalty = db.execute(
+            """INSERT INTO penalties (user_id, type, reason, permanent, created_by)
+               VALUES (?,?,?,?,?)""",
+            (target_id, "ban", reason, 1, actor))
+        if actor:
+            notify(target_id, actor, "user_ban",
+                   detail=f"你的账号已被封禁。原因：{reason}。",
+                   dedup_anchor=f"p{penalty}")
     elif target_type == "issue":
         db.execute("UPDATE issues SET status='closed', updated_at=datetime('now') "
                    "WHERE id = ?", (target_id,))
@@ -508,7 +645,8 @@ def reports_batch():
             db.execute("UPDATE reports SET status='dismissed', handled_by=? WHERE id=?",
                        (me["id"], rid))
         else:
-            _hide_reported_content(report["target_type"], report["target_id"])
+            _hide_reported_content(report["target_type"], report["target_id"],
+                                   report["reason"], me["id"])
             db.execute("UPDATE reports SET status='resolved', handled_by=? WHERE id=?",
                        (me["id"], rid))
         auth.audit(f"report_batch_{action}", report["target_type"], report["target_id"])
@@ -519,27 +657,52 @@ def reports_batch():
 
 
 def _report_target(target_type: str, target_id: int) -> dict | None:
+    """举报目标信息。author_id/author_name 供后台"禁言作者"快捷操作。"""
+    author_join = " LEFT JOIN users au ON au.id = x.author_id"
     if target_type == "forum_post":
-        row = db.query("SELECT title FROM forum_posts WHERE id = ?", (target_id,), one=True)
+        row = db.query(
+            """SELECT x.title, x.author_id, au.username AS author_name
+               FROM forum_posts x LEFT JOIN users au ON au.id = x.author_id
+               WHERE x.id = ?""", (target_id,), one=True)
         if row is None:
             return None
-        return {"label": f"帖子：{row['title']}", "url": f"/forum/{target_id}"}
+        return {"label": f"帖子：{row['title']}", "url": f"/forum/{target_id}",
+                "author_id": row["author_id"], "author_name": row["author_name"]}
     if target_type == "card":
-        row = db.query("SELECT id, name FROM cards WHERE id = ?", (target_id,), one=True)
-        return {"url": f"/card/{target_id}", "label": f"卡牌：{row['name']}"} if row else None
-    if target_type == "issue":
-        row = db.query("SELECT id, title FROM issues WHERE id = ?", (target_id,), one=True)
-        return {"url": f"/issue/{target_id}", "label": f"Issue：{row['title']}"} if row else None
-    if target_type == "comment":
-        row = db.query("SELECT id, target_type, target_id, body FROM comments WHERE id = ?",
-                       (target_id,), one=True)
+        row = db.query(
+            """SELECT x.name, x.author_id, au.username AS author_name
+               FROM cards x LEFT JOIN users au ON au.id = x.author_id
+               WHERE x.id = ?""", (target_id,), one=True)
         if row is None:
             return None
-        url = f"/{'card' if row['target_type'] == 'card' else 'issue'}/{row['target_id']}"
-        return {"url": url, "label": f"评论：{(row['body'] or '(已删除)')[:60]}"}
+        return {"label": f"卡牌：{row['name']}", "url": f"/card/{target_id}",
+                "author_id": row["author_id"], "author_name": row["author_name"]}
+    if target_type == "issue":
+        row = db.query(
+            """SELECT x.title, x.author_id, au.username AS author_name
+               FROM issues x LEFT JOIN users au ON au.id = x.author_id
+               WHERE x.id = ?""", (target_id,), one=True)
+        if row is None:
+            return None
+        return {"label": f"Issue：{row['title']}", "url": f"/issue/{target_id}",
+                "author_id": row["author_id"], "author_name": row["author_name"]}
+    if target_type == "comment":
+        row = db.query(
+            """SELECT x.id, x.target_type, x.target_id, x.body, x.author_id,
+                      au.username AS author_name
+               FROM comments x LEFT JOIN users au ON au.id = x.author_id
+               WHERE x.id = ?""", (target_id,), one=True)
+        if row is None:
+            return None
+        url = f"/{'card' if row['target_type'] == 'card' else ('issue' if row['target_type'] == 'issue' else 'forum')}/{row['target_id']}"
+        return {"url": url, "label": f"评论：{(row['body'] or '(已删除)')[:60]}",
+                "author_id": row["author_id"], "author_name": row["author_name"]}
     if target_type == "user":
         row = db.query("SELECT id, username FROM users WHERE id = ?", (target_id,), one=True)
-        return {"url": f"/u/{row['username']}", "label": f"用户：{row['username']}"} if row else None
+        if row is None:
+            return None
+        return {"label": f"用户：{row['username']}", "url": f"/u/{row['username']}",
+                "author_id": row["id"], "author_name": row["username"]}
     return None
 
 

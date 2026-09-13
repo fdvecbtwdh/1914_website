@@ -4,7 +4,12 @@
 <div id="comments">
   <h2 style="color:var(--brass-bright)">评论 (<span id="comment-count">{{ comments|length }}</span>)</h2>
 
-  {% if current_user %}
+  {% if current_user and current_mute %}
+  <div class="panel" style="padding:14px 16px;border-color:var(--red)">
+    🔇 你目前处于禁言状态，暂时无法发表评论。原因：{{ current_mute.reason }}。
+    {% if current_mute.permanent %}这是一次永久禁言。{% else %}将于 {{ current_mute.until }} 解除（剩余 {{ current_mute.remaining_text }}）。{% endif %}
+  </div>
+  {% elif current_user %}
   <div id="comment-form-slot-main" class="comment-form">
     <form id="comment-form" data-type="{{ target_type }}" data-id="{{ target_id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

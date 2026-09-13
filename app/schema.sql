@@ -14,9 +14,28 @@ CREATE TABLE IF NOT EXISTS users (
     is_banned     INTEGER NOT NULL DEFAULT 0,
     security_question      TEXT,
     security_answer_hash   TEXT,
+    mute_until   TEXT,                         -- NULL=未禁言；'permanent'=永久；否则解禁时间
+    mute_reason  TEXT,
+    ban_until    TEXT,                         -- 仅 is_banned=1 时有意义；NULL=永久封禁
+    banned_reason TEXT,
     created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
     last_login_at TEXT
 );
+
+-- 处罚记录（禁言/封禁历史；users 表字段仅保存当前生效状态）
+CREATE TABLE IF NOT EXISTS penalties (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type       TEXT NOT NULL,                  -- mute / ban
+    reason     TEXT NOT NULL,
+    permanent  INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT,                           -- NULL = 永久
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    lifted_at  TEXT,
+    lifted_by  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_penalties_user ON penalties(user_id, created_at);
 
 CREATE TABLE IF NOT EXISTS sessions (
     id         TEXT PRIMARY KEY,                 -- 随机 token
@@ -193,6 +212,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     card_id       INTEGER,
     issue_id      INTEGER,
     forum_post_id INTEGER,
+    detail        TEXT,              -- 系统类消息（处罚通知等）的直接文案
     comment_id    INTEGER,
     dedup_key    TEXT UNIQUE,     -- 防重复（同一操作重试只产生一条）
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))

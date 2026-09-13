@@ -6,7 +6,7 @@ from flask import Flask, request, g
 
 from . import db
 from .config import Config
-from .auth import bp as auth_bp, current_user, csrf_token, is_moderator
+from .auth import bp as auth_bp, current_user, csrf_token, is_moderator, active_mute
 from .markdown_utils import render_markdown, excerpt
 
 
@@ -83,6 +83,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "card_tag_descs": CARD_TAGS,
             "unread_count": (lambda: __import__("app.notify", fromlist=["x"]).unread_count(u["id"])
                              if u is not None else 0)(),
+            "current_mute": (lambda: active_mute(u) if u is not None else None)(),
         }
 
     @app.template_filter("md")

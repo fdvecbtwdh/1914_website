@@ -19,7 +19,8 @@ def _require_login_json():
     if u is None:
         abort(401, description="请先登录")
     if u["is_banned"]:
-        abort(403, description="账号已被封禁")
+        abort(403, description="账号已被封禁" +
+              (f"（原因：{u['banned_reason']}）" if u["banned_reason"] else ""))
     return u
 
 
@@ -55,6 +56,9 @@ def vote(target_type: str, target_id: int):
 @bp.route("/comment/<target_type>/<int:target_id>", methods=["POST"])
 def comment_new(target_type: str, target_id: int):
     user = _require_login_json()
+    mute = auth.active_mute(user)
+    if mute:
+        return _json_error(403, auth.mute_notice(mute))
     body = (request.form.get("body") or "").strip()
     parent_raw = request.form.get("parent_id", "")
     parent_id = int(parent_raw) if parent_raw.isdigit() else None
@@ -71,6 +75,9 @@ def comment_new(target_type: str, target_id: int):
 @bp.route("/comment/<int:comment_id>/edit", methods=["POST"])
 def comment_edit(comment_id: int):
     user = _require_login_json()
+    mute = auth.active_mute(user)
+    if mute:
+        return _json_error(403, auth.mute_notice(mute))
     body = (request.form.get("body") or "").strip()
     if not body:
         return _json_error(400, "内容不能为空")

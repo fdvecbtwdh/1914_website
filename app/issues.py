@@ -111,6 +111,10 @@ def issue_list():
 def issue_new():
     if request.method == "POST":
         auth.check_csrf()
+        mute = auth.active_mute(auth.current_user())
+        if mute:
+            flash(auth.mute_notice(mute), "danger")
+            return redirect(url_for("issues.issue_list"))
         title = (request.form.get("title") or "").strip()
         body = (request.form.get("body") or "").strip()
         if not (5 <= len(title) <= 120):
@@ -178,6 +182,10 @@ def issue_edit(issue_id: int):
         abort(403)
     if request.method == "POST":
         auth.check_csrf()
+        mute = auth.active_mute(user)
+        if mute:
+            flash(auth.mute_notice(mute), "danger")
+            return redirect(url_for("issues.issue_detail", issue_id=issue_id))
         title = (request.form.get("title") or "").strip()
         body = (request.form.get("body") or "").strip()
         if not (5 <= len(title) <= 120):

@@ -224,6 +224,11 @@ def _hot_tags(limit: int = 12) -> list:
 def card_new():
     if request.method == "POST":
         auth.check_csrf()
+        user = auth.current_user()
+        mute = auth.active_mute(user)
+        if mute:
+            flash(auth.mute_notice(mute), "danger")
+            return redirect(url_for("misc.home"))
         fields, err = _validate_card_form(request.form)
         if err:
             flash(err, "danger")
@@ -316,6 +321,10 @@ def card_edit(card_id: int):
         abort(403)
     if request.method == "POST":
         auth.check_csrf()
+        mute = auth.active_mute(user)
+        if mute:
+            flash(auth.mute_notice(mute), "danger")
+            return redirect(f"/card/{card_id}")
         fields, err = _validate_card_form(request.form)
         if err:
             flash(err, "danger")

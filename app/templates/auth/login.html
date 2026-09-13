@@ -4,6 +4,9 @@
 <div class="container" style="max-width:420px">
   <div class="panel form-panel" style="margin:40px auto">
     <h2>⚔ 登录 1914</h2>
+    {% if ban_notice %}
+    <div class="flash flash-danger" style="margin-bottom:14px">🚫 {{ ban_notice }}</div>
+    {% endif %}
     <form method="post" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next')|urlencode }}{% endif %}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div style="margin-bottom:14px">

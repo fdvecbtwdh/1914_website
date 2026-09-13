@@ -107,6 +107,42 @@
     };
   }
 
+  /* ---------- 管理后台：禁言/封禁弹窗 ---------- */
+  function bindPenaltyDialog(dialogId, btnClass, pathSuffix, withAction) {
+    const dlg = document.getElementById(dialogId);
+    if (!dlg) return;
+    let uid = "";
+    dlg.style && (dlg.style || {});
+    document.querySelectorAll("." + btnClass).forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        uid = btn.dataset.uid;
+        dlg.querySelector("[data-name]").textContent = btn.dataset.name || "";
+        dlg.querySelector("[data-reason]").value = "";
+        dlg.showModal();
+      });
+    });
+    dlg.querySelector("[data-close]").addEventListener("click", function () { dlg.close(); });
+    dlg.querySelector("[data-submit]").addEventListener("click", function () {
+      const reason = dlg.querySelector("[data-reason]").value.trim();
+      if (!reason) { alert("请填写原因"); return; }
+      const fd = new FormData();
+      fd.set("reason", reason);
+      if (withAction) fd.set("action", withAction);
+      const permanent = dlg.querySelector("[data-permanent]");
+      if (permanent && permanent.checked) {
+        fd.set("permanent", "1");
+      } else {
+        fd.set("duration_value", dlg.querySelector("[data-duration]").value || "1");
+        fd.set("duration_unit", dlg.querySelector("[data-unit]").value);
+      }
+      post("/admin/users/" + uid + pathSuffix, fd)
+        .then(() => location.reload())
+        .catch((err) => alert(err.message));
+    });
+  }
+  bindPenaltyDialog("mute-dialog", "mute-dialog-btn", "/mute", null);
+  bindPenaltyDialog("ban-dialog", "ban-dialog-btn", "/action", "ban");
+
   /* ---------- 论坛帖子删除（作者/版主） ---------- */
   document.addEventListener("click", function (e) {
     const delBtn = e.target.closest(".forum-delete");
