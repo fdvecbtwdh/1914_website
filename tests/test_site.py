@@ -1214,6 +1214,29 @@ class TestIssueComponentAndTags(Base):
         self.assertEqual(repos[gid], "fdvecbtwdh/1914")
         self.assertEqual(repos[wid], "fdvecbtwdh/1914_website")
 
+    def test_sync_queue_repo_column_migration(self):
+        """旧库 sync_queue 缺 repo 列时，init_db 幂等迁移自动补列，
+        否则 enqueue 的 INSERT 静默失败、同步永远不入队。"""
+        old_path = os.path.join(self.tmp, "old_queue.db")
+        conn = sqlite3.connect(old_path)
+        conn.execute("""CREATE TABLE sync_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            issue_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            finished_at TEXT)""")
+        conn.commit()
+        conn.close()
+        db.init_db(old_path)
+        conn = sqlite3.connect(old_path)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(sync_queue)")]
+        conn.close()
+        self.assertIn("repo", cols)
+
     def test_component_filter_admin(self):
         self.logout()
         self.register("fuser", "Passw0rd123")
@@ -1831,6 +1854,41 @@ class TestGithubProxy(Base):
             github_sync._gh_request = real_req
         self.assertEqual(captured.get("proxy"), "http://127.0.0.1:7890")
         self.assertIn("/repos/fdvecbtwdh/1914/issues", captured.get("url", ""))
+
+    def test_backfill_create_uses_proxy(self):
+        """update/close 补创建分支（Issue 尚未同步过）同样必须走代理。"""
+        self.logout()
+        self.register("backfilluser", "Passw0rd123")
+        self.app.config["GITHUB_TOKEN"] = "test-token"
+        self.app.config["GITHUB_PROXY"] = "http://127.0.0.1:7890"
+        self.app.config["GITHUB_WEB_REPO"] = "fdvecbtwdh/1914_website"
+        h = self.csrf_hdr()
+        self.client.post("/issues/new", headers=h, data={
+            "title": "补创建走代理的标题", "body": "x", "component": "web"},
+            follow_redirects=True)
+        wid = self.sql("SELECT id FROM issues WHERE title='补创建走代理的标题'")[0]["id"]
+        # 模拟 create 任务已丢失、只剩一条 update 任务且尚未同步到 GitHub
+        self.sql("DELETE FROM sync_queue")
+        self.sql("INSERT INTO sync_queue (issue_id, action, repo) VALUES (?, 'update', ?)",
+                 (wid, "fdvecbtwdh/1914_website"))
+        from app import github_sync
+        captured = {}
+        real_req = github_sync._gh_request
+        def fake(method, url, token, payload=None, proxy=""):
+            captured.update(method=method, url=url, proxy=proxy)
+            return {"number": 7, "html_url": "https://github.com/fdvecbtwdh/1914_website/issues/7"}
+        github_sync._gh_request = fake
+        try:
+            with self.app.app_context():
+                github_sync.process_queue(self.app)
+        finally:
+            github_sync._gh_request = real_req
+        self.assertEqual(captured.get("method"), "POST")
+        self.assertIn("/repos/fdvecbtwdh/1914_website/issues", captured.get("url", ""))
+        self.assertEqual(captured.get("proxy"), "http://127.0.0.1:7890")
+        row = self.sql("SELECT github_number, status FROM sync_queue WHERE issue_id=?")[0]
+        self.assertEqual(self.sql("SELECT github_number FROM issues WHERE id=?", (wid,))[0]["github_number"], 7)
+        self.assertEqual(row["status"], "done")
 
     def test_sync_without_proxy_direct(self):
         """未配置代理：proxy 参数为空（直连），队列任务正常处理。"""

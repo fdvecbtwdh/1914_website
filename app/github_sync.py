@@ -121,7 +121,7 @@ def process_queue(app) -> None:
                     if not gh_number:
                         # 尚未在 GitHub 创建 → 先补创建
                         data = _gh_request("POST", f"{API}/repos/{task_repo}/issues", token,
-                                           _issue_payload(issue))
+                                           _issue_payload(issue), proxy=proxy)
                         db.execute(
                             "UPDATE issues SET github_number = ?, github_url = ?, "
                             "github_synced_at = datetime('now') WHERE id = ?",
