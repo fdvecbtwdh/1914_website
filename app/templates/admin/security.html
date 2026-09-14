@@ -42,6 +42,7 @@
           <tr><td>登录锁定</td><td><b>{{ stats.get('login_locked', 0) }}</b> 次 <span class="row-sub">（已限制 15 分钟）</span></td></tr>
           <tr><td>高频请求</td><td><b>{{ stats.get('rate_limit', 0) }}</b> 次 <span class="row-sub">（可疑）</span></td></tr>
           <tr><td>IP 封禁</td><td><b>{{ stats.get('ip_ban', 0) }}</b> 次 <span class="row-sub">（已拦截）</span></td></tr>
+          <tr><td>注册限额</td><td><b>{{ stats.get('register_limit', 0) + stats.get('register_daily', 0) }}</b> 次 <span class="row-sub">（已拦截）</span></td></tr>
         </table>
         <p class="md-hint" style="margin-bottom:0">防护规则：每秒 30 请求触发限流（429），持续超限自动封禁 IP 1 小时；登录失败 5 次锁定 15 分钟；上传限制大小与图片格式；全站 CSRF 防护。</p>
       </div>
@@ -76,7 +77,7 @@
       <tr>
         <td class="mono">{{ e.created_at|dt }}</td>
         <td class="mono" style="overflow-wrap:anywhere">{{ e.ip }}</td>
-        <td>{{ {'rate_limit': '高频请求', 'login_failed': '登录失败', 'login_locked': '登录锁定', 'ip_ban': 'IP 封禁', 'ip_unban': 'IP 解禁'}.get(e.kind, e.kind) }}</td>
+        <td>{{ {'rate_limit': '高频请求', 'login_failed': '登录失败', 'login_locked': '登录锁定', 'ip_ban': 'IP 封禁', 'ip_unban': 'IP 解禁', 'register_limit': '注册尝试超限', 'register_daily': '注册名额用尽'}.get(e.kind, e.kind) }}</td>
         <td>
           {% if e.level == 'blocked' %}<span class="badge badge-red">已拦截</span>
           {% elif e.level == 'suspicious' %}<span class="badge badge-brass">可疑</span>

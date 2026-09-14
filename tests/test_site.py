@@ -61,7 +61,12 @@ class Base(unittest.TestCase):
     def register(self, username="tester", password="Passw0rd123", email=""):
         self.logout()   # 注册视图对已登录用户会重定向，先确保登出
         self.set_csrf()
-        r = self.client.post("/register", data={
+        # 每次注册模拟一个新访客的真实来源 IP（CF-Connecting-IP），
+        # 避免命中"每 IP 每天成功注册 1 个"的注册限额
+        n = getattr(self, "_reg_ip_seq", 0) + 1
+        self._reg_ip_seq = n
+        r = self.client.post("/register", headers={
+            "CF-Connecting-IP": "203.0.113.%d" % (n % 250 + 1)}, data={
             "csrf_token": "t",
             "username": username, "password": password,
             "confirm": password, "email": email,
@@ -1336,7 +1341,11 @@ class TestAccountRecovery(Base):
     def _register(self, name, email="", q="", a=""):
         self.logout()
         self.set_csrf()
-        r = self.client.post("/register", data={
+        # 模拟不同访客的真实 IP，避免命中"每 IP 每天成功注册 1 个"限额
+        n = getattr(self, "_reg_ip_seq", 0) + 1
+        self._reg_ip_seq = n
+        r = self.client.post("/register", headers={
+            "CF-Connecting-IP": "203.0.113.%d" % (n % 250 + 1)}, data={
             "csrf_token": "t", "username": name, "password": "Passw0rd123",
             "confirm": "Passw0rd123", "email": email,
             "security_question": q, "security_answer": a}, follow_redirects=True)
@@ -2176,21 +2185,54 @@ class TestIntegration(Base):
         self.assertLess(self.sql("SELECT COUNT(*) c FROM forum_posts")[0]["c"], 4)
 
     def test_register_rate_limit_by_ip(self):
-        """同一 IP 15 分钟内注册超过 5 次 → 429（每次注册后需登出再试）。"""
+        """同一 IP 15 分钟内注册尝试超过 5 次 → 429（失败尝试也计数）。
+
+        用无效数据（空用户名）反复提交：不产生成功注册，不消耗每日名额。
+        """
         self.set_csrf()
+        for i in range(5):
+            r = self.client.post("/register", data={
+                "csrf_token": "t", "username": "",
+                "password": "Passw0rd123", "confirm": "Passw0rd123"})
+            self.assertEqual(r.status_code, 200)
+        r = self.client.post("/register", data={
+            "csrf_token": "t", "username": "",
+            "password": "Passw0rd123", "confirm": "Passw0rd123"})
+        self.assertEqual(r.status_code, 429)
+
+    def test_register_rate_limit_uses_real_client_ip(self):
+        """Tunnel 部署下注册限额按 CF-Connecting-IP（真实客户端 IP）分桶。
+
+        回归：注册限速曾用 remote_addr（Tunnel 下恒为 127.0.0.1），
+        导致所有访客共享一个桶——A 被限后 B 也被 429（全站限速）。
+        """
+        ip_a = {"CF-Connecting-IP": "203.0.113.10"}
+        ip_b = {"CF-Connecting-IP": "198.51.100.20"}
         for i in range(5):
             self.logout()
             self.set_csrf()
-            r = self.client.post("/register", data={
-                "csrf_token": "t", "username": "bot%d" % i,
+            r = self.client.post("/register", headers=ip_a, data={
+                "csrf_token": "t", "username": "cfbot%d" % i,
                 "password": "Passw0rd123", "confirm": "Passw0rd123"})
             self.assertEqual(r.status_code, 302)
+        # 同一 IP 当日第 6 个账号 → 429（每 IP 每天限成功注册 5 个）
         self.logout()
         self.set_csrf()
-        r = self.client.post("/register", data={
-            "csrf_token": "t", "username": "bot5",
+        r = self.client.post("/register", headers=ip_a, data={
+            "csrf_token": "t", "username": "cfbot5",
             "password": "Passw0rd123", "confirm": "Passw0rd123"})
         self.assertEqual(r.status_code, 429)
+        self.assertIn("每天只能注册 5 个账号", r.get_data(as_text=True))
+        # 另一个真实来源 IP：独立配额，正常注册
+        self.set_csrf()
+        r = self.client.post("/register", headers=ip_b, data={
+            "csrf_token": "t", "username": "gooduser",
+            "password": "Passw0rd123", "confirm": "Passw0rd123"})
+        self.assertEqual(r.status_code, 302)
+        # 限速安全事件记录的是真实来源 IP，而非 127.0.0.1
+        rows = self.sql("SELECT ip, kind FROM security_events WHERE kind='register_daily'")
+        self.assertEqual({(row["kind"], row["ip"]) for row in rows},
+                         {("register_daily", "203.0.113.10")})
 
     def test_report_penalty_route(self):
         # 作者发帖，他人举报

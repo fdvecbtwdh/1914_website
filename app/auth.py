@@ -14,6 +14,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
 from . import db
+from .security import client_ip
 
 bp = Blueprint("auth", __name__)
 
@@ -21,6 +22,8 @@ _hasher = PasswordHasher()
 
 MAX_FAILS = 5
 FAIL_WINDOW_MIN = 15
+REGISTER_DAY_LIMIT = 5          # 每 IP 可成功注册的账号数
+REGISTER_DAY_WINDOW_MIN = 1440  # 名额窗口：滚动 24 小时（分钟）
 
 
 def _utcnow() -> datetime:
@@ -99,7 +102,7 @@ def create_session(user_id: int) -> None:
     db.execute(
         "INSERT INTO sessions (id, user_id, expires_at, ip, user_agent) VALUES (?,?,?,?,?)",
         (token, user_id, expires.strftime("%Y-%m-%d %H:%M:%S"),
-         request.remote_addr or "", (request.user_agent.string or "")[:200]),
+         client_ip(), (request.user_agent.string or "")[:200]),
     )
     session.clear()
     session["sid"] = token
@@ -330,7 +333,22 @@ def register():
         return redirect(url_for("misc.home"))
     if request.method == "POST":
         check_csrf()
-        reg_ip = request.remote_addr or "?"
+        reg_ip = client_ip()
+        # 当日名额优先判断：名额用完时应提示"明天再试"，而非 15 分钟限速的文案
+        if is_throttled("register_day", reg_ip, REGISTER_DAY_LIMIT,
+                        REGISTER_DAY_WINDOW_MIN):
+            audit("register_daily_limited", detail=reg_ip)
+            try:
+                from . import security
+                with current_app.app_context():
+                    security.record_event(reg_ip, "register_daily", "blocked",
+                                          f"该 IP 今日注册名额已用完（每 IP 每天限 "
+                                          f"{REGISTER_DAY_LIMIT} 个）")
+            except Exception:
+                pass
+            flash(f"每个 IP 每天只能注册 {REGISTER_DAY_LIMIT} 个账号，请明天再试",
+                  "danger")
+            return render_template("auth/register.html"), 429
         if throttle("register", reg_ip, 5, 15):
             audit("register_rate_limited", detail=reg_ip)
             try:
@@ -372,6 +390,8 @@ def register():
                  security_question or None,
                  hash_answer(security_answer) if security_answer else None))
             audit("user_register", "user", uid, username)
+            # 成功才计入当日名额，失败尝试不消耗配额
+            throttle("register_day", reg_ip, REGISTER_DAY_LIMIT, REGISTER_DAY_WINDOW_MIN)
             create_session(uid)
             flash(f"欢迎加入 1914，{username}！", "success")
             dest = request.args.get("next") or url_for("misc.home")
@@ -388,7 +408,7 @@ def login():
         check_csrf()
         ident = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
-        ip = request.remote_addr or "?"
+        ip = client_ip()
 
         if is_rate_limited(ident, ip):
             flash("登录失败次数过多，请 15 分钟后再试", "danger")
@@ -503,7 +523,7 @@ def recover():
     if request.method == "POST":
         check_csrf()
         ident = (request.form.get("ident") or "").strip().lstrip("@")
-        if throttle("recover_entry", request.remote_addr or "?", RECOVER_ENTRY_MAX, 15):
+        if throttle("recover_entry", client_ip(), RECOVER_ENTRY_MAX, 15):
             flash("尝试过于频繁，请稍后再试。", "warning")
             return render_template("auth/forgot.html")
         user = db.query("SELECT * FROM users WHERE username = ? OR email = ?",
@@ -542,7 +562,7 @@ def recover_email():
     user = _recover_user()
     if user is None or not user["email"]:
         return redirect(url_for("auth.recover"))
-    ip = request.remote_addr or "?"
+    ip = client_ip()
     if throttle("recover_mail", str(user["id"]), RECOVER_MAIL_MAX, 15) or        throttle("recover_mail_ip", ip, RECOVER_MAIL_IP_MAX, 15):
         flash("恢复请求过于频繁，请稍后再试。", "warning")
         return redirect(url_for("auth.recover_methods"))
@@ -583,7 +603,7 @@ def recover_question():
     if user is None or not user["security_question"]:
         return redirect(url_for("auth.recover"))
     username = user["username"]
-    ip = request.remote_addr or "?"
+    ip = client_ip()
     if is_throttled("recover_q", username, RECOVER_Q_MAX, 15) or        is_throttled("recover_q_ip", ip, RECOVER_Q_IP_MAX, 15):
         session.pop("recover_uid", None)
         flash("安全问题尝试次数过多，该账户的恢复功能已被暂时锁定，请稍后再试。", "danger")
