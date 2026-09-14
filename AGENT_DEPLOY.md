@@ -105,7 +105,7 @@ cloudflared service install <TOKEN>
 ## tests
 
 ```powershell
-.\.venv\Scripts\python -m unittest tests.test_site   # expect: OK (87 tests)
+.\.venv\Scripts\python -m unittest tests.test_site   # expect: OK (129 tests)
 ```
 
 ## update
