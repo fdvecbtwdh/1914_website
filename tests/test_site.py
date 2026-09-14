@@ -2768,5 +2768,349 @@ class TestGithubProxy(Base):
             self.assertEqual(r.status_code, 200, path)
 
 
+class TestCardProposals(Base):
+    """卡牌提案系统：修改提案 / 转正提案 / 打回重提 / 归档 / 权限。"""
+
+    def _official_card(self):
+        """测试库默认不播种：按需导入官方卡牌（与游戏项目不可用时回退 seed/）。"""
+        rows = self.sql("SELECT * FROM cards WHERE source='official' ORDER BY id LIMIT 1")
+        if not rows:
+            with self.app.app_context():
+                from app.card_sync import import_official_cards
+                import_official_cards()
+            rows = self.sql("SELECT * FROM cards WHERE source='official' ORDER BY id LIMIT 1")
+        return rows[0]
+
+    PROPOSAL_FIELDS = {
+        "name": "新步兵", "type": "unit", "unit_class": "infantry",
+        "nation": "neutral", "rarity": "common", "cost_g": "25", "cost_z": "1",
+        "cost_oil": "0", "attack": "9", "defense": "4",
+        "vision_range": "", "attack_range": "", "flavor_text": "更强",
+        "description": "提案描述",
+    }
+
+    def _propose(self, card_id, username="proposer", fields=None, reason=None, fresh=True):
+        """以指定用户对卡牌发起提案，返回 (响应, proposal_row)。fresh=False 时登录既有用户。"""
+        self.logout()
+        if fresh:
+            self.register(username, "Passw0rd123")
+        else:
+            self.login(username, "Passw0rd123")
+        self.set_csrf()
+        data = {"csrf_token": "t", "reason": reason or "数值不合理，建议加强攻击力，理由充分一些。"}
+        data.update(fields or self.PROPOSAL_FIELDS)
+        r = self.client.post(f"/card/{card_id}/propose", data=data, follow_redirects=True)
+        row = self.sql("SELECT * FROM card_proposals ORDER BY id DESC LIMIT 1")[0]
+        return r, row
+
+    def _admin_login(self):
+        self.logout()
+        if not getattr(self, "_prop_admin", None):
+            self._prop_admin = self.make_admin("propadmin", "Passw0rd123")
+        self.login(self._prop_admin[0], self._prop_admin[1])
+        self.set_csrf()
+
+    # ---- 修改提案：提交 → 投票 → 打回 → 重提（保分） → 批准 → 应用 + 归档 ----
+
+    def test_modification_full_flow(self):
+        card = self._official_card()
+        r, p = self._propose(card["id"], "proposer")
+        self.assertEqual(p["type"], "modification")
+        self.assertEqual(p["status"], "active")
+        post = self.sql("SELECT * FROM forum_posts WHERE id=?", (p["forum_post_id"],))[0]
+        self.assertEqual(post["category"], "卡牌修改提案")
+        self.assertIn("修改提案", post["title"])
+        self.assertIn(card["name"], post["title"])
+        # 版本快照 v1
+        self.assertEqual(len(self.sql(
+            "SELECT * FROM card_proposal_versions WHERE proposal_id=?", (p["id"],))), 1)
+        # 另一用户投票 +1 → 反对 -1 → 取消；分数随动
+        self.logout()
+        self.register("voter1", "Passw0rd123")
+        self.set_csrf()
+        h = self.csrf_hdr()
+        r1 = self.client.post(f"/api/vote/proposal/{p['id']}", headers=h,
+                              data={"direction": "1"}).get_json()
+        self.assertEqual(r1["score"], 1)
+        r2 = self.client.post(f"/api/vote/proposal/{p['id']}", headers=h,
+                              data={"direction": "-1"}).get_json()
+        self.assertEqual(r2["score"], -1)
+        r3 = self.client.post(f"/api/vote/proposal/{p['id']}", headers=h,
+                              data={"direction": "-1"}).get_json()
+        self.assertEqual(r3["score"], 0)  # 同向再点 = 取消
+        # 评论提案帖（复用论坛评论）
+        rc = self.client.post(f"/api/comment/forum_post/{p['forum_post_id']}", headers=h,
+                              data={"body": "支持这个方向"}).get_json()
+        self.assertTrue(rc["ok"])
+        # 非作者不能编辑提案
+        self.logout()
+        self.register("other", "Passw0rd123")
+        r = self.client.get(f"/proposals/{p['id']}/edit")
+        self.assertEqual(r.status_code, 403)
+        # 作者不能在 active 状态下直接改（须等打回）
+        self.logout()
+        self.login("proposer", "Passw0rd123")
+        r = self.client.get(f"/proposals/{p['id']}/edit")
+        self.assertEqual(r.status_code, 403)
+        # 管理员打回 + 备注
+        self._admin_login()
+        r = self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                             data={"action": "return", "note": "方向可以，攻击力太高，重新考虑"})
+        p2 = self.sql("SELECT * FROM card_proposals WHERE id=?", (p["id"],))[0]
+        self.assertEqual(p2["status"], "returned")
+        self.assertIn("攻击力太高", p2["admin_note"])
+        # 作者收到打回通知
+        notes = self.sql("SELECT * FROM notifications WHERE type='proposal_returned'")
+        self.assertTrue(any(n["recipient_id"] == self.sql(
+            "SELECT id FROM users WHERE username='proposer'")[0]["id"] for n in notes))
+        # 打回期间帖子与评论仍可看、可投票
+        self.assertEqual(self.client.get(f"/forum/{p['forum_post_id']}").status_code, 200)
+        # 作者重新编辑提交：沿用原帖，保留分数
+        self.logout()
+        self.login("proposer", "Passw0rd123")
+        self.assertEqual(self.client.get(f"/proposals/{p['id']}/edit").status_code, 200)
+        self.set_csrf()
+        fields = dict(self.PROPOSAL_FIELDS, attack="5")
+        fields.update({"csrf_token": "t", "reason": "按备注调整为攻击 5，平衡更合理。"})
+        r = self.client.post(f"/proposals/{p['id']}/resubmit", data=fields,
+                             follow_redirects=True)
+        p3 = self.sql("SELECT * FROM card_proposals WHERE id=?", (p["id"],))[0]
+        self.assertEqual(p3["status"], "active")
+        self.assertEqual(p3["resubmit_count"], 1)
+        self.assertEqual(json.loads(p3["data"])["attack"], 5)
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM card_proposal_versions "
+                                  "WHERE proposal_id=?", (p["id"],))[0]["c"], 2)
+        self.assertEqual(self.sql(
+            "SELECT forum_post_id FROM card_proposals WHERE id=?", (p["id"],))[0]["forum_post_id"],
+            p["forum_post_id"])  # 原帖未变
+        # 管理员批准 → 提案数值写入正式卡牌，帖子归档
+        self._admin_login()
+        r = self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                             data={"action": "approve", "note": "通过"})
+        card2 = self.sql("SELECT * FROM cards WHERE id=?", (card["id"],))[0]
+        self.assertEqual(card2["attack"], 5)
+        self.assertEqual(card2["name"], "新步兵")
+        self.assertEqual(card2["source"], "official")  # 官方卡不被转成别的类型
+        prop4 = self.sql("SELECT * FROM card_proposals WHERE id=?", (p["id"],))[0]
+        self.assertEqual(prop4["status"], "approved")
+        post2 = self.sql("SELECT * FROM forum_posts WHERE id=?", (p["forum_post_id"],))[0]
+        self.assertEqual(post2["status"], "archived")
+        self.assertIsNotNone(prop4["before_data"])  # 审核前快照留存
+        # 归档后冻结：不能评论 / 投票 / 编辑提案
+        self.logout()
+        self.register("late", "Passw0rd123")
+        self.set_csrf()
+        rc = self.client.post(f"/api/comment/forum_post/{p['forum_post_id']}",
+                              headers=self.csrf_hdr(), data={"body": "补一条"}).get_json()
+        self.assertFalse(rc["ok"])
+        rv = self.client.post(f"/api/vote/proposal/{p['id']}",
+                              headers=self.csrf_hdr(), data={"direction": "1"}).get_json()
+        self.assertFalse(rv["ok"])
+        self.assertEqual(self.client.get(f"/proposals/{p['id']}/edit").status_code, 403)
+        # 归档帖对游客可见
+        self.logout()
+        self.assertEqual(self.client.get(f"/forum/{p['forum_post_id']}").status_code, 200)
+        page = self.client.get(f"/forum/{p['forum_post_id']}").get_data(as_text=True)
+        self.assertIn("已归档", page)
+
+    def test_modification_reject_flow(self):
+        card = self._official_card()
+        r, p = self._propose(card["id"], "rejecter")
+        self._admin_login()
+        r = self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                             data={"action": "reject"})
+        card2 = self.sql("SELECT * FROM cards WHERE id=?", (card["id"],))[0]
+        self.assertEqual(card2["attack"], card["attack"])  # 卡牌未被修改
+        self.assertEqual(card2["name"], card["name"])
+        prop = self.sql("SELECT * FROM card_proposals WHERE id=?", (p["id"],))[0]
+        self.assertEqual(prop["status"], "rejected")
+        post = self.sql("SELECT * FROM forum_posts WHERE id=?", (p["forum_post_id"],))[0]
+        self.assertEqual(post["status"], "archived")
+
+    # ---- 转正提案 ----
+
+    def _create_community_card(self, username="creator"):
+        self.logout()
+        self.register(username, "Passw0rd123")
+        self.set_csrf()
+        r = self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "name": "自制重炮", "type": "unit",
+            "unit_class": "artillery", "nation": "neutral", "rarity": "silver",
+            "cost_g": "40", "cost_z": "2", "cost_oil": "1", "attack": "6",
+            "defense": "3", "description": "自制卡描述", "source": "community"})
+        self.assertEqual(r.status_code, 302)
+        return self.sql("SELECT * FROM cards WHERE name='自制重炮' ORDER BY id DESC LIMIT 1")[0]
+
+    def test_promotion_full_flow(self):
+        card = self._create_community_card("creator")
+        # 非作者不能发起转正
+        self.logout()
+        self.register("intruder", "Passw0rd123")
+        self.set_csrf()
+        data = dict(self.PROPOSAL_FIELDS, csrf_token="t", reason="想转正这张卡，设计完整。")
+        r = self.client.post(f"/card/{card['id']}/propose", data=data)
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM card_proposals")[0]["c"], 0)
+        # 作者发起转正提案
+        self.logout()
+        self.login("creator", "Passw0rd123")
+        self.set_csrf()
+        data = dict(self.PROPOSAL_FIELDS, name="自制重炮", cost_g="35", attack="7",
+                    csrf_token="t", reason="这张卡设计完整且经过社区检验，值得转正。")
+        r = self.client.post(f"/card/{card['id']}/propose", data=data, follow_redirects=True)
+        p = self.sql("SELECT * FROM card_proposals ORDER BY id DESC LIMIT 1")[0]
+        self.assertEqual(p["type"], "promotion")
+        post = self.sql("SELECT * FROM forum_posts WHERE id=?", (p["forum_post_id"],))[0]
+        self.assertEqual(post["category"], "卡牌转正")
+        self.assertIn("转正提案", post["title"])
+        # 打回 → 重提（保分）→ 批准转正
+        self._admin_login()
+        self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                         data={"action": "return", "note": "费用略高，调整后再审"})
+        self.logout()
+        self.login("creator", "Passw0rd123")
+        self.set_csrf()
+        fields = dict(self.PROPOSAL_FIELDS, name="自制重炮", cost_g="32", attack="7",
+                      csrf_token="t", reason="已按备注调整费用为 32。")
+        self.client.post(f"/proposals/{p['id']}/resubmit", data=fields)
+        self._admin_login()
+        self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                         data={"action": "approve"})
+        card2 = self.sql("SELECT * FROM cards WHERE id=?", (card["id"],))[0]
+        self.assertEqual(card2["source"], "official")   # 同一行卡牌转正
+        self.assertEqual(card2["cost_g"], 32)           # 提案数值已应用
+        self.assertEqual(card2["author_id"], card["author_id"])  # 作者保留
+        self.assertIn(card2["tag"], ("正式", "测试"))     # 按版本判定性质
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM cards WHERE name='自制重炮'")[0]["c"], 1)
+        prop = self.sql("SELECT * FROM card_proposals WHERE id=?", (p["id"],))[0]
+        self.assertEqual(prop["status"], "approved")
+        post2 = self.sql("SELECT * FROM forum_posts WHERE id=?", (p["forum_post_id"],))[0]
+        self.assertEqual(post2["status"], "archived")
+
+    def test_promotion_reject_keeps_community(self):
+        card = self._create_community_card("maker")
+        r, p = self._propose(card["id"], "maker", fresh=False,
+                             reason="这张卡设计完整，社区反馈良好，申请转正。")
+        self.assertEqual(p["type"], "promotion")
+        self._admin_login()
+        self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                         data={"action": "reject"})
+        card2 = self.sql("SELECT * FROM cards WHERE id=?", (card["id"],))[0]
+        self.assertEqual(card2["source"], "community")  # 原卡保持玩家自制
+        prop = self.sql("SELECT * FROM card_proposals WHERE id=?", (p["id"],))[0]
+        self.assertEqual(prop["status"], "rejected")
+
+    # ---- 权限与安全 ----
+
+    def test_propose_permissions_and_guards(self):
+        card = self._official_card()
+        # 游客 → 登录重定向
+        self.logout()
+        r = self.client.get(f"/card/{card['id']}/propose", follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/login", r.headers["Location"])
+        # 普通用户可以打开修改提案表单
+        self.register("normal", "Passw0rd123")
+        self.assertEqual(self.client.get(f"/card/{card['id']}/propose").status_code, 200)
+        # 手动在提案板块发帖被拒
+        self.set_csrf()
+        r = self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "title": "伪造的提案帖", "body": "x",
+            "category": "卡牌修改提案"}, follow_redirects=True)
+        self.assertIn("提案系统", r.get_data(as_text=True))
+        # 非管理员无法审核
+        r, p = self._propose(card["id"], "normal2")
+        self.logout()
+        self.register("notadmin", "Passw0rd123")
+        self.set_csrf()
+        r = self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                             data={"action": "approve"})
+        self.assertEqual(r.status_code, 403)
+        # 打回必须填备注
+        self._admin_login()
+        r = self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                             data={"action": "return", "note": ""}, follow_redirects=True)
+        self.assertEqual(self.sql("SELECT status FROM card_proposals WHERE id=?",
+                                  (p["id"],))[0]["status"], "active")
+
+    def test_proposal_post_protected(self):
+        card = self._official_card()
+        r, p = self._propose(card["id"], "guard")
+        self.logout()
+        self.register("guard", "Passw0rd123")
+        self.login("guard", "Passw0rd123")
+        # 提案帖不能普通编辑 / 删除
+        self.assertEqual(self.client.get(f"/forum/{p['forum_post_id']}/edit").status_code, 403)
+        self.assertEqual(self.client.post(f"/forum/{p['forum_post_id']}/delete",
+                                          headers=self.csrf_hdr()).status_code, 403)
+
+    # ---- 普通帖子归档 ----
+
+    def test_forum_archive_freezes_post(self):
+        self.register("poster", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "title": "将被归档的帖子标题", "body": "内容"},
+            follow_redirects=True)
+        post = self.sql("SELECT * FROM forum_posts ORDER BY id DESC LIMIT 1")[0]
+        # 版主归档
+        self.logout()
+        self._admin_login()
+        r = self.client.post(f"/forum/{post['id']}/archive", headers=self.csrf_hdr(),
+                             data={"action": "archive"})
+        row = self.sql("SELECT status FROM forum_posts WHERE id=?", (post["id"],))[0]
+        self.assertEqual(row["status"], "archived")
+        # 归档帖仍可查看，有归档标识
+        page = self.client.get(f"/forum/{post['id']}").get_data(as_text=True)
+        self.assertIn("已归档", page)
+        self.assertIn("将被归档的帖子标题", page)
+        # 无法回复
+        self.set_csrf()
+        rc = self.client.post(f"/api/comment/forum_post/{post['id']}",
+                              headers=self.csrf_hdr(), data={"body": "归档后回复"}).get_json()
+        self.assertFalse(rc["ok"])
+        # 作者无法编辑归档帖
+        self.logout()
+        self.login("poster", "Passw0rd123")
+        r = self.client.get(f"/forum/{post['id']}/edit")
+        self.assertEqual(r.status_code, 403)
+        # 列表可见归档帖
+        self.logout()
+        listing = self.client.get("/forum").get_data(as_text=True)
+        self.assertIn("将被归档的帖子标题", listing)
+        # 解除归档恢复
+        self._admin_login()
+        self.client.post(f"/forum/{post['id']}/archive", headers=self.csrf_hdr(),
+                         data={"action": "unarchive"})
+        self.assertEqual(self.sql("SELECT status FROM forum_posts WHERE id=?",
+                                  (post["id"],))[0]["status"], "visible")
+        # 删除行为不受影响（作者仍可删除普通帖）
+        self.logout()
+        self.login("poster", "Passw0rd123")
+        r = self.client.post(f"/forum/{post['id']}/delete", headers=self.csrf_hdr())
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.sql("SELECT status FROM forum_posts WHERE id=?",
+                                  (post["id"],))[0]["status"], "deleted")
+
+    def test_card_page_proposal_hints(self):
+        card = self._official_card()
+        r, p = self._propose(card["id"], "hintuser")
+        self.logout()
+        page = self.client.get(f"/card/{card['id']}").get_data(as_text=True)
+        self.assertIn("正在讨论中", page)
+        self.assertIn("卡牌修改提案", page)
+        # 提案归档后计数归零
+        self._admin_login()
+        self.client.post(f"/proposals/{p['id']}/review", headers=self.csrf_hdr(),
+                         data={"action": "reject"})
+        self.logout()
+        page = self.client.get(f"/card/{card['id']}").get_data(as_text=True)
+        self.assertNotIn("正在讨论中", page)
+        # 卡牌筛选页可看到该提案帖（含归档）
+        listing = self.client.get(
+            f"/forum?category=卡牌修改提案&card={card['id']}").get_data(as_text=True)
+        self.assertIn("修改提案", listing)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

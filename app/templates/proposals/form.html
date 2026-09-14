@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_gcard.html" import gcard with context %}
+{% from "_cardform.html" import card_fields, gcard_preview with context %}
+{% block title %}{{ '重新提交' if resubmit else '创建' }}{{ type_label }}：{{ base_card.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>{{ '重新提交' if resubmit else '创建' }}{{ type_label }}</h1>
+    <span class="sub">针对卡牌《{{ base_card.name }}》 · 提交后自动在论坛「{{ category }}」板块开帖讨论</span>
+  </div>
+
+  <div class="card-form-layout" id="card-form-layout">
+    <form class="panel form-panel" id="card-form" method="post"
+          action="{{ '/proposals/' + proposal.id|string + '/resubmit' if resubmit else '/card/' + base_card.id|string + '/propose' }}"
+          style="max-width:none;margin-bottom:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if resubmit %}
+      <div class="full panel" style="padding:10px 14px;border-color:var(--brass);margin-bottom:14px">
+        🛡 <b>管理员打回备注：</b>{{ proposal.admin_note or '（未填写）' }}
+        <span class="md-hint" style="display:block">请根据备注修改方案后重新提交。重新提交沿用原帖子，社区投票分数完整保留。</span>
+      </div>
+      {% endif %}
+      {{ card_fields(card, form_values, show_source=False, show_tag=False,
+                     show_art=False, show_tags=False) }}
+      <div class="full" style="margin-top:6px">
+        <label>提案说明 *（{{ '修改理由、数值调整思路与设计目标' if ptype == 'modification' else '设计理念、为什么这张卡值得转正' }}）</label>
+        <textarea name="reason" minlength="10" maxlength="5000" required
+                  data-md-preview="#reason-preview">{{ form_values.reason if form_values else (proposal.reason if proposal else '') }}</textarea>
+        <div id="reason-preview" class="preview-pane"></div>
+        <p class="md-hint">支持 Markdown。说明会同步为论坛提案帖的正文。</p>
+      </div>
+      <div style="margin-top:18px;display:flex;gap:12px">
+        <button class="btn btn-brass" type="submit">{{ '重新提交提案' if resubmit else '提交提案' }}</button>
+        <a class="btn" href="{{ '/forum/' + proposal.forum_post_id|string if resubmit else '/card/' + base_card.id|string }}">取消</a>
+      </div>
+    </form>
+
+    <div>
+      {{ gcard_preview() }}
+      <div style="margin-top:18px;text-align:center">
+        <p style="color:var(--muted);margin:0 0 8px">当前正式版本（{{ '提案将修改它' if ptype == 'modification' else '转正对象' }}）</p>
+        {{ gcard(base_card, size='sm', link=True) }}
+        {% if ptype == 'modification' %}
+        <p class="md-hint" style="text-align:left;margin-top:10px">提案在管理员批准前不会影响正式卡牌；批准后提案数值将直接应用到游戏官方卡，并保留完整审核记录。</p>
+        {% else %}
+        <p class="md-hint" style="text-align:left;margin-top:10px">转正批准后，这张玩家自制卡牌将在同一卡牌数据上转为官方卡牌（不会产生重复卡牌），并按当前游戏版本获得卡牌性质。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<script>window.RANGES = {{ ranges|tojson }};</script>
+{% endblock %}

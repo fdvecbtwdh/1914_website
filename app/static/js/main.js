@@ -296,6 +296,51 @@
     });
   }
 
+  /* ---------- 提案投票（赞成/反对，可改投可取消） ---------- */
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".pvote-btn");
+    if (!btn) return;
+    e.preventDefault();
+    const id = btn.dataset.id, dir = btn.dataset.direction;
+    if (!id) return;
+    if (btn.dataset.requireLogin === "1") {
+      location.href = "/login?next=" + encodeURIComponent(location.pathname);
+      return;
+    }
+    btn.disabled = true;
+    post("/api/vote/proposal/" + id, { direction: dir })
+      .then((r) => {
+        document.querySelectorAll('.pvote-btn[data-id="' + id + '"]').forEach((b) => {
+          b.classList.toggle("pvote-active", Number(b.dataset.direction) === r.my_vote);
+        });
+        document.querySelectorAll('.pvote-score[data-id="' + id + '"]').forEach((s) => {
+          s.textContent = r.score;
+        });
+      })
+      .catch((err) => alert(err.message))
+      .finally(() => (btn.disabled = false));
+  });
+
+  /* ---------- 管理员审核提案（批准/不批准/打回 + 备注） ---------- */
+  const reviewDlg = document.getElementById("proposal-review-dialog");
+  if (reviewDlg) {
+    const titles = { approve: "✔ 批准更改", reject: "✖ 不批准更改", return: "↩ 打回修改" };
+    document.querySelectorAll(".proposal-review-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        reviewDlg.querySelector("#pr-action").value = btn.dataset.action;
+        reviewDlg.querySelector("#pr-title").textContent = titles[btn.dataset.action] || "审核提案";
+        const note = reviewDlg.querySelector("#pr-note");
+        note.value = "";
+        note.required = btn.dataset.action === "return";
+        note.placeholder = btn.dataset.action === "return"
+          ? "打回原因（必填）：告知作者需要修改什么，例如“油费方向可以，但攻击力数值需要重新考虑”"
+          : "备注（选填）";
+        reviewDlg.showModal();
+      });
+    });
+    reviewDlg.querySelector("#pr-cancel").addEventListener("click", () => reviewDlg.close());
+  }
+
   /* ---------- Markdown 实时预览 ---------- */
   const mdFields = document.querySelectorAll("[data-md-preview]");
   mdFields.forEach(function (field) {

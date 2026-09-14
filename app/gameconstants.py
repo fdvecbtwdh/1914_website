@@ -144,8 +144,20 @@ ISSUE_TAGS = {
 }
 
 # 论坛分类（forum_posts.category）
-FORUM_CATEGORIES = ("讨论", "攻略", "求助", "建议", "闲聊")
+FORUM_CATEGORIES = ("讨论", "攻略", "求助", "建议", "闲聊", "卡牌修改提案", "卡牌转正")
 DEFAULT_FORUM_CATEGORY = "讨论"
+# 提案板块：帖子由提案系统自动创建，手动发帖/编辑不可选
+PROPOSAL_CATEGORIES = {"卡牌修改提案": "modification", "卡牌转正": "promotion"}
+POSTABLE_CATEGORIES = tuple(c for c in FORUM_CATEGORIES if c not in PROPOSAL_CATEGORIES)
+
+# 卡牌提案状态（card_proposals.status）
+PROPOSAL_STATUSES = {
+    "active": "讨论中",      # 活跃讨论，等待管理员审核
+    "returned": "已打回",    # 管理员打回修改，作者可重新编辑提交
+    "approved": "已批准",    # 已应用/转正（帖子归档冻结）
+    "rejected": "未批准",    # 不批准（帖子归档冻结）
+}
+PROPOSAL_TYPES = {"modification": "修改提案", "promotion": "转正提案"}
 
 ROLES = ("user", "moderator", "admin")
 

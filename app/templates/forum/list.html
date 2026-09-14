@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}社区论坛 — {{ site_name }}{% endblock %}
-{% block meta_description %}1914 玩家社区论坛：游戏讨论、玩法攻略、问题求助与建议交流。{% endblock %}
+{% block meta_description %}1914 玩家社区论坛：游戏讨论、玩法攻略、问题求助、建议交流与卡牌提案。{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -14,24 +14,40 @@
     {% endif %}
   </div>
 
+  {% if card_id %}
+  <div class="panel" style="padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    📜 正在查看卡牌 <a href="/card/{{ card_id }}"><b>《{{ card_name or ('#' ~ card_id) }}》</b></a> 的全部提案（含历史归档，活跃优先）
+    <a class="filter-clear" href="/forum">✕ 查看全部帖子</a>
+  </div>
+  {% endif %}
+
   <div class="tab-row">
-    <a href="/forum?sort={{ sort }}" {% if not category %}class="active"{% endif %}>全部</a>
+    <a href="/forum?sort={{ sort }}" {% if not category and not card_id %}class="active"{% endif %}>全部</a>
     {% for c in categories %}
     <a href="/forum?category={{ c }}&sort={{ sort }}" {% if category == c %}class="active"{% endif %}>{{ c }}</a>
     {% endfor %}
     <a href="/forum?{% if category %}category={{ category }}&{% endif %}sort={{ 'recent_reply' if sort != 'recent_reply' else 'latest' }}"
        style="margin-left:auto;color:var(--muted)">↕ {{ '按最新回复' if sort != 'recent_reply' else '按最新发布' }}</a>
+    {% if category == '卡牌修改提案' or category == '卡牌转正' or card_id %}
+    <a href="/forum?{% if category %}category={{ category }}&{% endif %}{% if card_id %}card={{ card_id }}&{% endif %}sort={{ 'latest' if sort == 'score' else 'score' }}"
+       style="color:var(--muted)">↕ {{ '按最新' if sort == 'score' else '按分数' }}</a>
+    {% endif %}
   </div>
 
   <div class="panel" style="padding:4px 0">
     {% for p in posts %}
     <div class="issue-row" style="align-items:center">
-      <span class="badge">{{ p.category }}</span>
+      <span class="badge {{ 'badge-brass' if p.status == 'archived' }}">{{ p.category }}</span>
+      {% if p.proposal_id %}
+      <span class="badge badge-olive" title="提案分数（赞成 +1 / 反对 -1）">▲ {{ p.proposal_score }}</span>
+      <span class="badge {{ 'badge-olive' if p.proposal_status in ('active','returned') else 'badge-brass' }}">{{ p.proposal_status_label }}</span>
+      {% endif %}
       <div class="grow" style="min-width:0">
         <a class="issue-title" href="/forum/{{ p.id }}" style="overflow-wrap:anywhere">{{ p.title }}</a>
         <div class="issue-meta">
           {{ p.author_name or '已注销' }} · {{ p.created_at|ago }}
           · 💬 {{ p.reply_count }}
+          {% if p.status == 'archived' %} · 🗂 已归档（仅供查看）{% endif %}
           {% if p.reply_count %} · 最后回复 {{ p.last_reply_by or '?' }} {{ p.reply_at|ago }}{% endif %}
         </div>
       </div>
@@ -45,7 +61,7 @@
   <div class="pagination">
     {%- for p in range(1, pages + 1) -%}
       {%- if p == page %}<span class="current">{{ p }}</span>
-      {%- else %}<a href="/forum?{% if category %}category={{ category }}&{% endif %}sort={{ sort }}&page={{ p }}">{{ p }}</a>{% endif -%}
+      {%- else %}<a href="/forum?{% if category %}category={{ category }}&{% endif %}{% if card_id %}card={{ card_id }}&{% endif %}sort={{ sort }}&page={{ p }}">{{ p }}</a>{% endif -%}
     {%- endfor -%}
   </div>
   {% endif %}

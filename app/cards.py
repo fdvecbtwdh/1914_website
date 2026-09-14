@@ -301,8 +301,16 @@ def card_detail(card_id: int):
     comments = interactions.comments_for("card", card_id)
     my_vote = interactions.user_has_voted(auth.current_user()["id"], "card", card_id) \
         if auth.is_logged_in() else False
+    # 该卡的活跃提案数（修改提案针对官方卡；转正提案针对玩家自制卡）
+    proposal_count = db.query(
+        """SELECT COUNT(*) AS n FROM card_proposals
+           WHERE card_id = ? AND status IN ('active','returned')""",
+        (card_id,), one=True)["n"]
+    proposal_category = "卡牌修改提案" if card["source"] == "official" else "卡牌转正"
     return render_template("cards/detail.html", card=card, comments=comments,
-                           my_vote=my_vote, GAME_ABILITIES=ABILITIES)
+                           my_vote=my_vote, GAME_ABILITIES=ABILITIES,
+                           proposal_count=proposal_count,
+                           proposal_category=proposal_category)
 
 
 # ---------- 编辑 / 删除 ----------

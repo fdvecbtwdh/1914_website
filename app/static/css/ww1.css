@@ -662,3 +662,29 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .msg-time { text-align: left; }
 }
 
+
+/* ---------- 卡牌提案 ---------- */
+.proposal-duel {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start;
+  justify-content: center; margin-top: 14px;
+}
+.proposal-duel .duel-side { flex: 1 1 200px; max-width: 280px; min-width: 170px; }
+.proposal-duel .duel-arrow {
+  align-self: center; font-size: 1.6rem; color: var(--brass-bright);
+  flex: 0 0 auto;
+}
+.proposal-diff th, .proposal-diff td { text-align: left; }
+.pvote-btn { min-width: 74px; }
+.pvote-btn.pvote-active {
+  border-color: var(--brass-bright); color: var(--brass-bright);
+  background: rgba(201, 162, 39, .12); font-weight: bold;
+}
+.pvote-score {
+  font-size: 1.1rem; font-weight: bold; color: var(--brass-bright);
+  min-width: 34px; text-align: center; display: inline-block;
+}
+@media (max-width: 600px) {
+  .proposal-duel { flex-direction: column; align-items: center; }
+  .proposal-duel .duel-side { width: 100%; max-width: 300px; flex-basis: auto; }
+  .proposal-duel .duel-arrow { transform: rotate(90deg); }
+}

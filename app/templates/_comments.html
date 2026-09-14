@@ -1,10 +1,14 @@
 {# 共享评论区 — 卡牌 & Issue 详情页复用
-   参数: target_type ('card'|'issue'), target_id, comments (两层结构) #}
+   参数: target_type ('card'|'issue'), target_id, comments (两层结构)
+   freeze_comments（可选，默认 False）：帖子归档后冻结 — 隐藏新评论表单与回复入口 #}
 {% from "_macros.html" import role_badge %}
+{% set freeze_comments = freeze_comments|default(false) %}
 <div id="comments">
   <h2 style="color:var(--brass-bright)">评论 (<span id="comment-count">{{ comments|length }}</span>)</h2>
 
-  {% if current_user and current_mute %}
+  {% if freeze_comments %}
+  <p class="md-hint" style="border-left:3px solid var(--brass);padding-left:10px">🗂 内容已归档：评论仅可查看，无法再发表或修改。</p>
+  {% elif current_user and current_mute %}
   <div class="panel" style="padding:14px 16px;border-color:var(--red)">
     🔇 你目前处于禁言状态，暂时无法发表评论。原因：{{ current_mute.reason }}。
     {% if current_mute.permanent %}这是一次永久禁言。{% else %}将于 {{ current_mute.until }} 解除（剩余 {{ current_mute.remaining_text }}）。{% endif %}
@@ -38,8 +42,8 @@
       <div class="comment-body md-body">{{ c.body_html|safe if not c.is_deleted else '（已删除）' }}</div>
       {% if not c.is_deleted %}
       <div class="comment-actions">
-        {% if current_user %}<a href="#comments" class="comment-reply" data-id="{{ c.id }}">回复</a>{% endif %}
-        {% if current_user and current_user['id'] == c.author_id %}
+        {% if current_user and not freeze_comments %}<a href="#comments" class="comment-reply" data-id="{{ c.id }}">回复</a>{% endif %}
+        {% if current_user and not freeze_comments and current_user['id'] == c.author_id %}
           <button class="comment-edit" data-id="{{ c.id }}" data-raw="{{ c.body }}">编辑</button>
         {% endif %}
         {% if current_user and (current_user['id'] == c.author_id or is_moderator) %}
@@ -63,8 +67,8 @@
           <div class="comment-body md-body">{{ r.body_html|safe if not r.is_deleted else '（已删除）' }}</div>
           {% if not r.is_deleted %}
           <div class="comment-actions">
-            {% if current_user %}<a href="#comments" class="comment-reply" data-id="{{ r.id }}" data-mention="{{ r.username or '' }}">回复</a>{% endif %}
-            {% if current_user and current_user['id'] == r.author_id %}
+            {% if current_user and not freeze_comments %}<a href="#comments" class="comment-reply" data-id="{{ r.id }}" data-mention="{{ r.username or '' }}">回复</a>{% endif %}
+            {% if current_user and not freeze_comments and current_user['id'] == r.author_id %}
               <button class="comment-edit" data-id="{{ r.id }}" data-raw="{{ r.body }}">编辑</button>
             {% endif %}
             {% if current_user and (current_user['id'] == r.author_id or is_moderator) %}

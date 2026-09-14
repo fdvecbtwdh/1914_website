@@ -719,7 +719,7 @@ def forum_admin():
     if q:
         where.append("(f.title LIKE ? OR f.body LIKE ?)")
         args.extend([f"%{q}%", f"%{q}%"])
-    if status in ("visible", "hidden", "deleted"):
+    if status in ("visible", "hidden", "deleted", "archived"):
         where.append("f.status = ?")
         args.append(status)
     where_sql = " AND ".join(where)
@@ -745,12 +745,14 @@ def forum_action(post_id: int):
     post = db.query("SELECT * FROM forum_posts WHERE id = ?", (post_id,), one=True)
     if post is None:
         abort(404)
-    if action in ("hide", "restore", "delete"):
-        status = {"hide": "hidden", "restore": "visible", "delete": "deleted"}[action]
+    if action in ("hide", "restore", "delete", "archive", "unarchive"):
+        status = {"hide": "hidden", "restore": "visible", "delete": "deleted",
+                  "archive": "archived", "unarchive": "visible"}[action]
         db.execute("UPDATE forum_posts SET status = ?, updated_at = datetime('now') "
                    "WHERE id = ?", (status, post_id))
         auth.audit(f"forum_post_{action}", "forum_post", post_id, post["title"])
-        flash(f"帖子已{ {'hide': '隐藏', 'restore': '恢复', 'delete': '删除'}[action] }",
+        flash(f"帖子已{ {'hide': '隐藏', 'restore': '恢复', 'delete': '删除',
+                        'archive': '归档', 'unarchive': '解除归档'}[action] }",
               "success")
     return redirect(url_for("admin.forum_admin"))
 

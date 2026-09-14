@@ -21,7 +21,8 @@ def notify(recipient_id, actor_id, ntype, card_id=None, issue_id=None,
     """
     if not recipient_id or not actor_id or recipient_id == actor_id:
         return
-    anchor = comment_id or card_id or issue_id or forum_post_id or dedup_anchor
+    # 显式 dedup_anchor 优先（同一内容可多次触发同类型消息，如提案反复打回）
+    anchor = dedup_anchor or comment_id or card_id or issue_id or forum_post_id
     dedup = f"{ntype}:{actor_id}:{recipient_id}:{anchor}"
     try:
         db.execute(

@@ -73,7 +73,7 @@ def search():
                ORDER BY i.created_at DESC LIMIT 12""", (like, like))
         forum_posts = db.query(
             """SELECT f.id, f.title, f.category, f.created_at FROM forum_posts f
-               WHERE f.status = 'visible' AND (f.title LIKE ? OR f.body LIKE ?)
+               WHERE f.status IN ('visible','archived') AND (f.title LIKE ? OR f.body LIKE ?)
                ORDER BY f.created_at DESC LIMIT 12""", (like, like))
         users_found = db.query(
             """SELECT u.id, u.username, u.role, u.bio, u.created_at,
@@ -110,7 +110,7 @@ def sitemap():
         urls.append((f"{base}/card/{r['id']}", "0.7"))
     for r in db.query("SELECT id, updated_at FROM issues ORDER BY id DESC LIMIT 2000"):
         urls.append((f"{base}/issue/{r['id']}", "0.7"))
-    for r in db.query("SELECT id, updated_at FROM forum_posts WHERE status='visible' "
+    for r in db.query("SELECT id, updated_at FROM forum_posts WHERE status IN ('visible','archived') "
                       "ORDER BY id DESC LIMIT 2000"):
         urls.append((f"{base}/forum/{r['id']}", "0.7"))
     xml_items = []

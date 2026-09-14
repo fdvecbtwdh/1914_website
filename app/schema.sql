@@ -150,9 +150,10 @@ CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(target_type, target_i
 
 CREATE TABLE IF NOT EXISTS votes (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type TEXT NOT NULL,       -- card / issue / comment
+    target_type TEXT NOT NULL,       -- card / issue / comment / proposal
     target_id   INTEGER NOT NULL,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    direction   INTEGER NOT NULL DEFAULT 1,  -- 1=赞成 / -1=反对（提案用；旧类型恒为 1）
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, target_type, target_id)
 );
 CREATE INDEX IF NOT EXISTS idx_votes_target ON votes(target_type, target_id);
@@ -225,6 +226,39 @@ CREATE TABLE IF NOT EXISTS forum_posts (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_forum_posts_status ON forum_posts(status, created_at);
+
+-- 卡牌提案：修改提案（官方卡）与转正提案（玩家自制卡）共用一张表，type 区分。
+-- 提案数据存 JSON（卡牌编辑器字段子集）；批准时由服务端写入正式卡牌并冻结快照。
+CREATE TABLE IF NOT EXISTS card_proposals (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    type           TEXT NOT NULL,                   -- modification / promotion
+    card_id        INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    author_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    forum_post_id  INTEGER UNIQUE REFERENCES forum_posts(id) ON DELETE SET NULL,
+    data           TEXT NOT NULL DEFAULT '{}',      -- 提案卡牌字段（JSON）
+    reason         TEXT NOT NULL DEFAULT '',        -- 提案说明（Markdown）
+    status         TEXT NOT NULL DEFAULT 'active',  -- active / returned / approved / rejected
+    admin_note     TEXT NOT NULL DEFAULT '',        -- 管理员备注（打回/审核时填写）
+    reviewed_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at    TEXT,
+    before_data    TEXT,                            -- 批准时冻结的原卡字段快照（JSON，追溯用）
+    resubmit_count INTEGER NOT NULL DEFAULT 0,      -- 打回后重新提交次数
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_proposals_card ON card_proposals(card_id, status);
+CREATE INDEX IF NOT EXISTS idx_proposals_author ON card_proposals(author_id);
+
+-- 提案版本历史：每次提交/重新提交存一份，便于回看之前的方案
+CREATE TABLE IF NOT EXISTS card_proposal_versions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposal_id  INTEGER NOT NULL REFERENCES card_proposals(id) ON DELETE CASCADE,
+    data         TEXT NOT NULL,
+    reason       TEXT NOT NULL DEFAULT '',
+    submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_proposal_versions ON card_proposal_versions(proposal_id, created_at);
 
 -- 站内消息（不做逐条已读；用户级 last_viewed_messages_at 记录查看位置）
 CREATE TABLE IF NOT EXISTS notifications (

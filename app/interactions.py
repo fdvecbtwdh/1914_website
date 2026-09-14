@@ -1,18 +1,25 @@
 """通用互动逻辑 — 投票、评论、举报。卡牌与 Issue 复用。
 投票唯一性由 votes 表主键 (user_id, target_type, target_id) 保证，可重入。
+提案（proposal）投票带方向：±1 可切换、可取消，分数 = SUM(direction)。
 """
 from . import db, auth
 
-TARGET_TYPES = ("card", "issue", "comment")
+TARGET_TYPES = ("card", "issue", "comment", "proposal")
 VALID_TARGETS = {
     "card": ("cards", "card"),
     "issue": ("issues", "issue"),
     "forum_post": ("forum_posts", "forum"),
     "comment": ("comments", "comment"),
+    "proposal": ("card_proposals", "proposals"),
 }
 
 
 def _target_exists(target_type: str, target_id: int) -> bool:
+    if target_type == "proposal":
+        # 只有讨论中 / 已打回的提案可投票；已归档（批准/不批准）冻结
+        return db.query(
+            "SELECT 1 FROM card_proposals WHERE id = ? AND status IN ('active','returned')",
+            (target_id,), one=True) is not None
     if target_type not in VALID_TARGETS:
         return False
     table, _ = VALID_TARGETS[target_type]
@@ -27,17 +34,64 @@ def _target_exists(target_type: str, target_id: int) -> bool:
     return row is not None
 
 
+def forum_post_frozen(target_type: str, target_id: int) -> bool:
+    """目标是否属于已归档（archived）的论坛帖子：归档后禁止新回复与投票。"""
+    if target_type == "forum_post":
+        post_id = target_id
+    elif target_type == "comment":
+        row = db.query("SELECT target_type, target_id FROM comments WHERE id = ?",
+                       (target_id,), one=True)
+        if row is None or row["target_type"] != "forum_post":
+            return False
+        post_id = row["target_id"]
+    else:
+        return False
+    return db.query("SELECT 1 FROM forum_posts WHERE id = ? AND status = 'archived'",
+                    (post_id,), one=True) is not None
+
+
 # ---------- 投票 ----------
 
-def vote(user_id: int, target_type: str, target_id: int) -> dict:
-    """切换投票：已投则取消，未投则投上。返回 {voted: bool, count: int}。"""
+def vote(user_id: int, target_type: str, target_id: int,
+         direction: int = 1) -> dict:
+    """投票切换。
+
+    card / issue / comment：已投则取消，未投则投上（旧行为）。
+    proposal：带方向 —— 同向再点=取消，反向=切换；分数 = SUM(direction)。
+    返回 {voted/my_vote, count/score}。
+    """
     if target_type not in VALID_TARGETS:
         raise ValueError("无效的投票对象")
+    if target_type == "forum_post" and forum_post_frozen("forum_post", target_id):
+        raise ValueError("帖子已归档，互动已冻结")
+    if target_type == "comment" and forum_post_frozen("comment", target_id):
+        raise ValueError("帖子已归档，互动已冻结")
     if not _target_exists(target_type, target_id):
         raise LookupError("目标不存在")
     existing = db.query(
         "SELECT 1 FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?",
         (user_id, target_type, target_id), one=True)
+    if target_type == "proposal":
+        direction = 1 if direction >= 0 else -1
+        row = db.query(
+            "SELECT direction FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?",
+            (user_id, target_type, target_id), one=True)
+        if row is None:
+            db.execute(
+                "INSERT INTO votes (user_id, target_type, target_id, direction) VALUES (?,?,?,?)",
+                (user_id, target_type, target_id, direction))
+            my = direction
+        elif row["direction"] == direction:
+            db.execute(
+                "DELETE FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?",
+                (user_id, target_type, target_id))
+            my = 0
+        else:
+            db.execute(
+                "UPDATE votes SET direction = ? WHERE user_id = ? AND target_type = ? AND target_id = ?",
+                (direction, user_id, target_type, target_id))
+            my = direction
+        return {"my_vote": my, "score": vote_score(target_type, target_id)}
     if existing:
         db.execute("DELETE FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?",
                    (user_id, target_type, target_id))
@@ -74,6 +128,24 @@ def vote_count(target_type: str, target_id: int) -> int:
     row = db.query("SELECT COUNT(*) AS c FROM votes WHERE target_type = ? AND target_id = ?",
                    (target_type, target_id), one=True)
     return row["c"] if row else 0
+
+
+def vote_score(target_type: str, target_id: int) -> int:
+    """带方向投票的分数（+1/-1）；对旧类型等价于 vote_count。"""
+    row = db.query(
+        "SELECT IFNULL(SUM(direction), 0) AS s FROM votes WHERE target_type = ? AND target_id = ?",
+        (target_type, target_id), one=True)
+    return row["s"] if row else 0
+
+
+def user_vote_direction(user_id: int, target_type: str, target_id: int) -> int:
+    """当前用户对目标的投票方向：1 赞成 / -1 反对 / 0 未投。"""
+    if not user_id:
+        return 0
+    row = db.query(
+        "SELECT direction FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?",
+        (user_id, target_type, target_id), one=True)
+    return row["direction"] if row else 0
 
 
 def user_has_voted(user_id: int, target_type: str, target_id: int) -> bool:
@@ -117,6 +189,8 @@ def add_comment(user_id: int, target_type: str, target_id: int,
         raise ValueError("无效的评论对象")
     if not body.strip():
         raise ValueError("评论内容不能为空")
+    if target_type == "forum_post" and forum_post_frozen("forum_post", target_id):
+        raise ValueError("帖子已归档，无法再回复")
     if not _target_exists(target_type, target_id):
         raise LookupError("目标不存在")
     reply_to = None  # 被回复的评论；若它本身是子回复，正文加 @作者 前缀
@@ -181,6 +255,8 @@ def edit_comment(user_id: int, comment_id: int, body: str, is_mod: bool) -> None
     if row["author_id"] != user_id and not is_mod:
         auth.audit("comment_edit_denied", "comment", comment_id)
         raise PermissionError("只能编辑自己的评论")
+    if not is_mod and forum_post_frozen(row["target_type"], row["target_id"]):
+        raise PermissionError("所属帖子已归档，内容已冻结")
     db.execute("UPDATE comments SET body = ?, body_html = ?, edited_at = datetime('now') WHERE id = ?",
                (body.strip(), render_markdown(body.strip()), comment_id))
 

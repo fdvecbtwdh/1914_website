@@ -34,6 +34,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from . import serverstatus as ss_bp_mod
     from . import messages as msg_bp_mod
     from . import forum as forum_bp_mod
+    from . import proposals as prop_bp_mod
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cards_bp_mod.bp)
@@ -46,6 +47,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(ss_bp_mod.bp)
     app.register_blueprint(msg_bp_mod.bp)
     app.register_blueprint(forum_bp_mod.bp)
+    app.register_blueprint(prop_bp_mod.bp)
 
     # 状态页后台采样线程（网站启动时采样一次，之后每 30 秒更新快照）
     if app.config.get("STATUS_SAMPLER_ENABLED", True):

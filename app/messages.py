@@ -42,7 +42,7 @@ def inbox():
     # 联表后 type 与 cards.type 重名，需要 n. 前缀
     rows = db.query(
         f"""SELECT n.id, n.type, n.card_id, n.issue_id, n.forum_post_id, n.comment_id,
-                  n.created_at, a.username AS actor_name, a.role AS actor_role,
+                  n.detail, n.created_at, a.username AS actor_name, a.role AS actor_role,
                   c.name AS card_name, i.title AS issue_title, fp.title AS forum_title,
                   cm.is_deleted AS comment_deleted
            FROM notifications n
@@ -116,4 +116,15 @@ def _text(d: dict) -> str:
         return f"{actor} 评论了你的 Issue" + (f"《{d['issue_title']}》" if d["issue_title"] else "（该内容已被删除）")
     if d["type"] == "issue_vote":
         return f"{actor} 点赞了你的 Issue" + (f"《{d['issue_title']}》" if d["issue_title"] else "（该内容已被删除）")
+    if d["type"] == "proposal_returned":
+        t = f"{actor} 打回了你的提案" + (f"《{d['forum_title']}》" if d["forum_title"] else "（该内容已被删除）")
+        return t + (f"：{d['detail']}" if d["detail"] else "，请修改后重新提交")
+    if d["type"] == "proposal_approved":
+        return (f"{actor} 批准了你的提案" + (f"《{d['forum_title']}》" if d["forum_title"] else "")
+                + (f"（{d['detail']}）" if d["detail"] else ""))
+    if d["type"] == "proposal_rejected":
+        return f"{actor} 未批准你的提案" + (f"《{d['forum_title']}》" if d["forum_title"] else "（该内容已被删除）")
+    if d["type"] == "proposal_resubmitted":
+        return (f"{actor} 重新提交了提案" + (f"《{d['forum_title']}》" if d["forum_title"] else "（该内容已被删除）")
+                + "，等待审核")
     return f"{actor} 与你产生了互动"

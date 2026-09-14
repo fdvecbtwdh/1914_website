@@ -6,13 +6,16 @@
 
 {% block content %}
 <div class="container">
-  <nav class="breadcrumb"><a href="/forum">社区论坛</a> / {{ post.title }}</nav>
+  <nav class="breadcrumb"><a href="/forum">社区论坛</a>
+    {%- if post.category %} / <a href="/forum?category={{ post.category }}">{{ post.category }}</a>{% endif %}
+    / {{ post.title }}</nav>
 
   <div class="panel" style="padding:18px 20px">
     <div class="page-title" style="margin-bottom:10px">
       <h1 style="font-size:1.5rem;overflow-wrap:anywhere">{{ post.title }}</h1>
       <span class="badge">{{ post.category }}</span>
       {% if post.status == 'hidden' %}<span class="badge badge-red">已隐藏</span>{% endif %}
+      {% if post.status == 'archived' %}<span class="badge badge-brass">🗂 已归档</span>{% endif %}
     </div>
     <p style="color:var(--muted);margin:0 0 14px">
       <a href="/u/{{ post.author_name or '?' }}">{{ post.author_name or '已注销' }}</a>{{ role_badge(post.author_role) }}
@@ -20,17 +23,37 @@
       {% if post.updated_at and post.updated_at != post.created_at %} · 编辑于 {{ post.updated_at|ago }}{% endif %}
       · <button class="report-btn" data-type="forum_post" data-id="{{ post.id }}"
           style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">举报</button>
-      {% if current_user and (current_user['id'] == post.author_id or is_moderator) %}
+      {% if current_user and (current_user['id'] == post.author_id or is_moderator) and post.status == 'visible' and not proposal %}
         · <a href="/forum/{{ post.id }}/edit">编辑</a>
+      {% endif %}
+      {% if current_user and (current_user['id'] == post.author_id or is_moderator) and post.status != 'archived' and not proposal %}
         · <button class="forum-delete" data-id="{{ post.id }}"
             style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">删除</button>
       {% endif %}
+      {% if is_moderator and post.status != 'deleted' and not proposal %}
+        · <form method="post" action="/forum/{{ post.id }}/archive" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="{{ 'unarchive' if post.status == 'archived' else 'archive' }}">
+            <button class="linklike" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9em">
+              {{ '解除归档' if post.status == 'archived' else '归档' }}</button>
+          </form>
+      {% endif %}
     </p>
+    {% if post.status == 'archived' %}
+    <p class="md-hint" style="border-left:3px solid var(--brass);padding-left:10px">
+      🗂 本帖已归档：内容永久保留供查看，但无法再回复、投票或修改。</p>
+    {% endif %}
     <div class="md-body" style="overflow-wrap:anywhere">{{ post.body|md|safe }}</div>
   </div>
 
+  {% if proposal %}
+  {% set post_archived = post.status == 'archived' %}
+  {% include "_proposal_panel.html" %}
+  {% endif %}
+
   {% set target_type = 'forum_post' %}
   {% set target_id = post.id %}
+  {% set freeze_comments = post.status == 'archived' %}
   {% include "_comments.html" with context %}
 </div>
 {% endblock %}

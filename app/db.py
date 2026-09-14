@@ -137,3 +137,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # 旧库的同步队列表缺 repo 列（按 Issue 所属分流目标仓库），
         # 缺列会让 enqueue 的 INSERT 静默失败、同步永远不入队
         conn.execute("ALTER TABLE sync_queue ADD COLUMN repo TEXT")
+    vcols = [r[1] for r in conn.execute("PRAGMA table_info(votes)")]
+    if vcols and "direction" not in vcols:
+        # 提案投票需要方向（+1 赞成 / -1 反对）；旧数据（卡牌/Issue/评论）恒为赞成
+        conn.execute("ALTER TABLE votes ADD COLUMN direction INTEGER NOT NULL DEFAULT 1")

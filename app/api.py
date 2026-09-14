@@ -42,8 +42,10 @@ def _csrf_protect():
 @bp.route("/vote/<target_type>/<int:target_id>", methods=["POST"])
 def vote(target_type: str, target_id: int):
     user = _require_login_json()
+    # 提案投票带方向（1=赞成 / -1=反对）；其余类型忽略 direction
+    direction = -1 if request.form.get("direction") == "-1" else 1
     try:
-        result = interactions.vote(user["id"], target_type, target_id)
+        result = interactions.vote(user["id"], target_type, target_id, direction)
     except LookupError:
         return _json_error(404, "目标不存在")
     except ValueError as e:

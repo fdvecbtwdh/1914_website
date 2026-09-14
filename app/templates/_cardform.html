@@ -1,0 +1,189 @@
+{# 卡牌编辑器共享宏 — 卡牌投稿/编辑页 与 卡牌提案页 复用同一套字段与实时预览。
+   依赖模板上下文：card_types / unit_classes / rarities / nations / ranges /
+   class_icons / game_version / current_user / csrf_token
+   参数:
+     card          预填卡牌 dict（含 abilities_list）
+     form_values   MultiDict（校验失败回显）或 None
+     show_source   是否显示"卡牌来源"选择（仅卡牌页；管理员可见）
+     show_tag      是否显示"卡牌性质"选择（提案页隐藏）
+     show_art      是否显示卡面上传（提案沿用原卡，隐藏）
+     show_tags     是否显示标签输入（提案页隐藏）
+     tags          编辑态的既有标签串 #}
+{% macro card_fields(card, form_values, show_source=False, show_tag=True,
+                     show_art=True, show_tags=True, tags='') %}
+<div class="form-grid">
+  {% if show_source %}
+  {% if current_user and current_user['role'] == 'admin' %}
+  <div style="margin-bottom:14px" class="full">
+    <label>卡牌来源 *</label>
+    <select name="source" style="max-width:240px">
+      <option value="community" {% if (form_values.source if form_values else (card.source if card else 'community')) == 'community' %}selected{% endif %}>玩家自制</option>
+      <option value="official" {% if (form_values.source if form_values else (card.source if card else '')) == 'official' %}selected{% endif %}>🎖 官方卡牌</option>
+    </select>
+    <p class="md-hint">官方卡牌带“官方”标识展示，仅管理员可投稿、编辑与删除；游戏 JSON 导入的官方卡，其游戏侧字段会在下次导入时以游戏数据为准。</p>
+  </div>
+  {% else %}
+  <input type="hidden" name="source" value="community">
+  {% endif %}
+  {% endif %}
+  <div class="full">
+    <label>卡牌名称 *</label>
+    <input type="text" name="name" maxlength="30" required
+           value="{{ form_values.name if form_values else (card.name if card else '') }}">
+  </div>
+  <div>
+    <label>类型 *</label>
+    <select name="type">
+      {% for k, v in card_types.items() %}
+      <option value="{{ k }}" {% if (form_values.type if form_values else (card.type if card else 'unit')) == k %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>兵种 *（单位卡必选）</label>
+    <select name="unit_class">
+      <option value="">— 指令卡可不选 —</option>
+      {% for k, v in unit_classes.items() %}
+      <option value="{{ k }}" {% if (form_values.unit_class if form_values else (card.unit_class if card else '')) == k %}selected{% endif %}>{{ class_icons[k] }} {{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if show_tag %}
+  <div>
+    <label>卡牌性质 *</label>
+    <select name="card_tag">
+      {% set cur_tag = (form_values.card_tag if form_values and 'card_tag' in form_values else (card.tag if card and 'tag' in card.keys() else '正式')) %}
+      <option value="正式" {% if cur_tag == '正式' %}selected{% endif %}>正式 — 进入正式卡池的卡牌</option>
+      <option value="测试" {% if cur_tag == '测试' %}selected{% endif %}>测试 — 测试用，不代表正式卡牌和样板数据</option>
+    </select>
+    <p class="md-hint">性质按游戏版本自动判定：v0.x 均为测试卡，v1.0 起才可为正式卡（当前 {{ game_version }}）。</p>
+  </div>
+  {% endif %}
+  <div>
+    <label>稀有度 *</label>
+    <select name="rarity">
+      {% for k, v in rarities.items() %}
+      <option value="{{ k }}" {% if (form_values.rarity if form_values else (card.rarity if card else 'common')) == k %}selected{% endif %}>{{ v }}卡</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>阵营</label>
+    <select name="nation">
+      {% for k, v in nations.items() %}
+      <option value="{{ k }}" {% if (form_values.nation if form_values else (card.nation if card else 'neutral')) == k %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>生产费用 G（经济）</label>
+    <input type="number" name="cost_g" min="0" max="999"
+           value="{{ form_values.cost_g if form_values else (card.cost_g if card else 30) }}">
+  </div>
+  <div>
+    <label id="cost-z-label">部署战争点 Z</label>
+    <input type="number" name="cost_z" min="0" max="99"
+           value="{{ form_values.cost_z if form_values else (card.cost_z if card else 1) }}">
+  </div>
+  <div>
+    <label>油费（0 = 无油费）</label>
+    <input type="number" name="cost_oil" min="0" max="99"
+           value="{{ form_values.cost_oil if form_values else (card.cost_oil if card else 0) }}">
+  </div>
+  <div>
+    <label>攻击力</label>
+    <input type="number" name="attack" min="0" max="99"
+           value="{{ form_values.attack if form_values else (card.attack if card else 3) }}">
+  </div>
+  <div>
+    <label>防御力</label>
+    <input type="number" name="defense" min="0" max="99"
+           value="{{ form_values.defense if form_values else (card.defense if card else 4) }}">
+  </div>
+  <div>
+    <label>视野范围</label>
+    <select name="vision_range">
+      <option value="">—</option>
+      {% for k, v in ranges.items() %}
+      <option value="{{ k }}" {% if (form_values.vision_range if form_values else (card.vision_range if card else '')) == k %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>攻击范围</label>
+    <select name="attack_range">
+      <option value="">—</option>
+      {% for k, v in ranges.items() %}
+      <option value="{{ k }}" {% if (form_values.attack_range if form_values else (card.attack_range if card else '')) == k %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="full">
+    <label>词条能力（可多选；坚守/补给/修复可设等级）</label>
+    <div class="ability-picker">
+      {% for ab, tip in abilities.items() %}
+      <label class="ability-item" title="{{ tip }}">
+        <input type="checkbox" name="abilities" value="{{ ab }}"
+          {{ 'checked' if ab in (form_values.getlist('abilities') if form_values else (card.abilities_list if card else [])) else '' }}>
+        {{ ab }}
+        {% if ab in ('坚守', '补给', '修复', '爆破') %}
+        <input type="number" class="ability-level" name="ability_level_{{ ab }}" min="1" max="3"
+               placeholder="级" title="等级（留空=1级）" value="{{ form_values.get('ability_level_' ~ ab, '') if form_values else '' }}">
+        {% endif %}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% if show_art %}
+  <div class="full">
+    <label>卡面图片（PNG / JPG / WEBP / GIF，≤ {{ 4 }}MB，400×500 最佳）</label>
+    <input type="file" name="art" accept="image/png,image/jpeg,image/webp,image/gif">
+    {% if card and card.art_path %}<p class="md-hint">已有卡面，不上传新图则保留原图。</p>{% endif %}
+  </div>
+  {% endif %}
+  <div class="full">
+    <label>风味文字</label>
+    <input type="text" name="flavor_text" maxlength="200"
+           value="{{ form_values.flavor_text if form_values else (card.flavor_text if card else '') }}"
+           placeholder="一句风味描述，如“堑壕中的士兵。”">
+  </div>
+  <div class="full">
+    <label>详细描述（Markdown）</label>
+    <textarea name="description" data-md-preview="#desc-preview">{{ form_values.description if form_values else (card.description if card else '') }}</textarea>
+    <div id="desc-preview" class="preview-pane"></div>
+  </div>
+  {% if show_tags %}
+  <div class="full">
+    <label>标签（逗号分隔，最多 6 个）</label>
+    <input type="text" name="tags" value="{{ tags or (form_values.tags if form_values else '') }}" placeholder="比如: 平衡性, 趣味, 自制阵营">
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# 实时预览卡面（main.js 的 #card-form 监听依赖以下 id 结构） #}
+{% macro gcard_preview() %}
+<div class="card-form-preview">
+  <p style="color:var(--muted);margin:0 0 10px">实时预览</p>
+  <div id="gcard-preview" style="display:flex;justify-content:center">
+    <div class="gcard">
+      <div class="gcard-top">
+        <div class="gcard-name">卡牌名称</div>
+        <div class="gcard-costs">
+          <span class="cost-chip cost-g">⚙ 30</span>
+          <span class="cost-chip cost-k">✦ 1</span>
+        </div>
+      </div>
+      <div class="gcard-art"><span class="placeholder-icon">🎖</span></div>
+      <div class="gcard-stats"><span class="stat-atk">3</span><span class="stat-def">4</span></div>
+      <div class="gcard-range"></div>
+      <div class="gcard-abilities"></div>
+      <div class="gcard-flavor"> </div>
+      <div class="gcard-footer">
+        <span class="nation">NEUTRAL</span>
+        <span class="cls">infantry</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
