@@ -283,6 +283,19 @@
     });
   }
 
+  /* ---------- 注册：未设置恢复方式时警告（一旦忘记密码将无法找回） ---------- */
+  const regForm = document.querySelector('form[action="/register"]');
+  if (regForm) {
+    regForm.addEventListener("submit", function (e) {
+      const val = (n) => { const el = regForm.querySelector('[name="' + n + '"]'); return el ? el.value.trim() : ""; };
+      if (val("email") || val("security_question") || val("security_answer")) return;
+      if (!confirm("你未设置任何账户恢复方式（邮箱 / 安全问题）。\n" +
+                   "该账号一旦忘记密码将无法找回，确定继续注册吗？")) {
+        e.preventDefault();
+      }
+    });
+  }
+
   /* ---------- Markdown 实时预览 ---------- */
   const mdFields = document.querySelectorAll("[data-md-preview]");
   mdFields.forEach(function (field) {
