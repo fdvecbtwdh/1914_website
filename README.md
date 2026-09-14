@@ -111,7 +111,8 @@ cloudflared service install
 
 ```
 id → game_id    name → 名称    type → unit/order    unit_class → 兵种
-cost_g → 经济 G  cost_z → 战争点 Z（部署）  attack/defense → 攻/防
+cost_g → 经济 G  cost_z → 战争点 Z（部署）  cost_oil → 油费（可选，默认 0）
+attack/defense → 攻/防
 vision_range/attack_range → 视野/射程（枚举文案同 game-mechanics.md）
 abilities → 词条（支持等级如 "坚守2"）  rarity → common/silver/gold（铜/银/金）
 art → 卡面图    flavor_text → 风味文字

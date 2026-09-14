@@ -178,6 +178,12 @@ table td, table th { border: 1px solid var(--line); padding: .35em .7em; }
   display: inline-flex; align-items: center; gap: 3px; font-weight: 700; font-size: .92rem;
   padding: 1px 7px; border-radius: 999px; border: 1.5px solid;
 }
+/* 卡面费用 chip 较多时（如 🛢 油费）允许换行并收紧，避免溢出裁剪 */
+.gcard-costs { flex-wrap: wrap; justify-content: flex-end; row-gap: 2px; }
+.gcard-sm .gcard-costs .cost-chip, .card-tile .gcard-costs .cost-chip { padding: 1px 4px; font-size: .8rem; }
+.gcard-sm .gcard-costs, .card-tile .gcard-costs { gap: 3px; }
+
+.cost-chip.cost-oil { background: #26262e; border-color: #7a7a8c; color: #e8e8f2; }
 .cost-g { background: #f3e6c2; border-color: #8a6f19; color: #6b5310; }
 .cost-k { background: #dfe6f0; border-color: #3a5a8a; color: #27466e; }
 .gcard-art {

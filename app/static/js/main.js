@@ -426,6 +426,16 @@
       const zk = preview.querySelector(".cost-k");
       zk.innerHTML = (isOrder ? "K " : "✦ ") + (val("cost_z") || "0");
       zk.title = isOrder ? "使用指挥点 K" : "部署战争点 Z";
+      const oil = parseInt(val("cost_oil") || "0", 10);
+      let oilChip = preview.querySelector(".cost-oil");
+      if (!oilChip) {
+        oilChip = document.createElement("span");
+        oilChip.className = "cost-chip cost-oil";
+        oilChip.title = "油费";
+        zk.parentNode.insertBefore(oilChip, zk.nextSibling);
+      }
+      oilChip.textContent = oil > 0 ? "🛢 " + oil : "";
+      oilChip.style.display = oil > 0 ? "" : "none";
       const zLabel = document.getElementById("cost-z-label");
       if (zLabel) zLabel.textContent = isOrder ? "使用指挥点 K" : "部署战争点 Z";
       preview.querySelector(".stat-atk").textContent = val("attack") || "0";

@@ -65,6 +65,7 @@
           <tr><td>使用费用</td><td>K {{ card.cost_z }} 指挥点 (K)</td></tr>
           {% else %}
           <tr><td>部署费用</td><td>✦ {{ card.cost_z }} 战争点 (Z)</td></tr>
+          <tr><td>油费</td><td>🛢 {{ card.cost_oil or 0 }}</td></tr>
           {% endif %}
           <tr><td>攻击 / 防御</td><td><b style="color:#e08a7a">{{ card.attack }}</b> / <b style="color:#8fb0d8">{{ card.defense }}</b></td></tr>
           <tr><td>视野范围</td><td>{{ ranges.get(card.vision_range, card.vision_range or '—') }}</td></tr>

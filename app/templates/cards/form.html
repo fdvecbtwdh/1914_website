@@ -84,6 +84,11 @@
                  value="{{ form_values.cost_z if form_values else (card.cost_z if card else 1) }}">
         </div>
         <div>
+          <label>油费（0 = 无油费）</label>
+          <input type="number" name="cost_oil" min="0" max="99"
+                 value="{{ form_values.cost_oil if form_values else (card.cost_oil if card else 0) }}">
+        </div>
+        <div>
           <label>攻击力</label>
           <input type="number" name="attack" min="0" max="99"
                  value="{{ form_values.attack if form_values else (card.attack if card else 3) }}">

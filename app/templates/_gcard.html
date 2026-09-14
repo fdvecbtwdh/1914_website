@@ -21,6 +21,7 @@
       <span class="cost-chip cost-k" title="使用指挥点 K">K {{ card.cost_z }}</span>
       {% else %}
       <span class="cost-chip cost-k" title="部署战争点 Z">✦ {{ card.cost_z }}</span>
+      {% if card.cost_oil %}<span class="cost-chip cost-oil" title="油费">🛢 {{ card.cost_oil }}</span>{% endif %}
       {% endif %}
     </div>
   </div>

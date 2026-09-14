@@ -102,6 +102,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE cards SET tag='测试' "
                      "WHERE lower(COALESCE(game_id,'')) LIKE '%test%' OR name LIKE '%测试%'")
     ccols = [r[1] for r in conn.execute("PRAGMA table_info(cards)")]
+    if "cost_oil" not in ccols:
+        # 油费（卡牌正式数据属性；旧卡默认 0=无油费）
+        conn.execute("ALTER TABLE cards ADD COLUMN cost_oil INTEGER NOT NULL DEFAULT 0")
     if "cost_k" in ccols and "cost_z" not in ccols:
         # 游戏设计变更：部署消耗改为战争点 Z
         conn.execute("ALTER TABLE cards RENAME COLUMN cost_k TO cost_z")

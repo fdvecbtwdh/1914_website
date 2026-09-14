@@ -12,7 +12,7 @@ from . import db
 from .gameconstants import official_tag_for_version
 
 ALLOWED_FIELDS = {
-    "id", "name", "nation", "type", "unit_class", "cost_g", "cost_z",
+    "id", "name", "nation", "type", "unit_class", "cost_g", "cost_z", "cost_oil",
     "attack", "defense", "vision_range", "attack_range", "abilities",
     "rarity", "art", "flavor_text",
 }
@@ -90,7 +90,11 @@ def import_official_cards(game_path: str | None = None) -> dict:
         abilities = data.get("abilities") or []
         if not isinstance(abilities, list):
             abilities = []
-        existing = db.query("SELECT id FROM cards WHERE game_id = ?", (gid,), one=True)
+        existing = db.query("SELECT id, cost_oil FROM cards WHERE game_id = ?", (gid,), one=True)
+        # 游戏 JSON 可选提供 cost_oil（油费）；未提供时导入保留现有值
+        oil = data.get("cost_oil")
+        oil = max(0, min(99, int(oil))) if isinstance(oil, (int, float)) else \
+            (existing["cost_oil"] if existing else 0)
         # 卡牌性质：按游戏版本判定（v0.* 一律测试，v1.0 起正式）；
         # ID/名称带显式测试标记的卡在任何版本都保持测试卡。
         is_test = "test" in gid.lower() or "测试" in name
@@ -98,11 +102,11 @@ def import_official_cards(game_path: str | None = None) -> dict:
         if existing:
             db.execute(
                 """UPDATE cards SET name=?, nation=?, type=?, unit_class=?, cost_g=?, cost_z=?,
-                   attack=?, defense=?, vision_range=?, attack_range=?, abilities=?, rarity=?,
-                   flavor_text=?, tag=?, updated_at=datetime('now') WHERE id=?""",
+                   cost_oil=?, attack=?, defense=?, vision_range=?, attack_range=?, abilities=?,
+                   rarity=?, flavor_text=?, tag=?, updated_at=datetime('now') WHERE id=?""",
                 (name, data.get("nation") or "neutral", data.get("type") or "unit",
                  data.get("unit_class") or "", int(data.get("cost_g") or 0),
-                 int(data.get("cost_z") or 0), int(data.get("attack") or 0),
+                 int(data.get("cost_z") or 0), oil, int(data.get("attack") or 0),
                  int(data.get("defense") or 0), data.get("vision_range") or "",
                  data.get("attack_range") or "", json.dumps(abilities, ensure_ascii=False),
                  data.get("rarity") or "common", data.get("flavor_text") or "",
@@ -117,12 +121,12 @@ def import_official_cards(game_path: str | None = None) -> dict:
                 slug = f"{base}-{n}"
             db.execute(
                 """INSERT INTO cards (game_id, slug, name, nation, type, unit_class, cost_g, cost_z,
-                   attack, defense, vision_range, attack_range, abilities, rarity, flavor_text,
+                   cost_oil, attack, defense, vision_range, attack_range, abilities, rarity, flavor_text,
                    description, author_id, source, status, tag)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,'official','visible',?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,'official','visible',?)""",
                 (gid, slug, name, data.get("nation") or "neutral", data.get("type") or "unit",
                  data.get("unit_class") or "", int(data.get("cost_g") or 0),
-                 int(data.get("cost_z") or 0), int(data.get("attack") or 0),
+                 int(data.get("cost_z") or 0), oil, int(data.get("attack") or 0),
                  int(data.get("defense") or 0), data.get("vision_range") or "",
                  data.get("attack_range") or "", json.dumps(abilities, ensure_ascii=False),
                  data.get("rarity") or "common", data.get("flavor_text") or "",

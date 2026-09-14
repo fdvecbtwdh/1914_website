@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS cards (
     unit_class   TEXT    NOT NULL DEFAULT '',      -- infantry/cavalry/tank/fighter/bomber/artillery/fortification
     cost_g       INTEGER NOT NULL DEFAULT 0,
     cost_z       INTEGER NOT NULL DEFAULT 0,  -- 单位=部署战争点 Z；指令卡=使用指挥点 K
+    cost_oil     INTEGER NOT NULL DEFAULT 0,  -- 油费（使用/部署所需，0=无油费；数值由平衡设计确定）
     attack       INTEGER NOT NULL DEFAULT 0,
     defense      INTEGER NOT NULL DEFAULT 0,
     vision_range TEXT    NOT NULL DEFAULT '',

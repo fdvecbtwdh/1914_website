@@ -2294,6 +2294,46 @@ class TestDomainConfig(Base):
         self.assertNotIn("1914.fun", link2)
 
 
+class TestCardOilCost(Base):
+    """卡牌油费（cost_oil）：创建/编辑/详情/旧卡兼容。"""
+
+    def test_oil_cost_create_edit_display(self):
+        self.register("oilu", "Passw0rd123")
+        self.set_csrf()
+        # 创建带油费的卡
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "带油费的卡", "type": "unit", "unit_class": "infantry",
+            "cost_g": 30, "cost_z": 1, "cost_oil": 5},
+            content_type="multipart/form-data", follow_redirects=True)
+        cid = self.sql("SELECT id, cost_oil FROM cards WHERE name='带油费的卡'")[0]
+        self.assertEqual(cid["cost_oil"], 5)
+        # 详情页显示油费
+        html = self.client.get(f"/card/{cid['id']}").get_data(as_text=True)
+        self.assertIn("油费", html)
+        self.assertIn("🛢 5", html)
+        # 编辑修改油费
+        self.client.post(f"/card/{cid['id']}/edit", headers=self.csrf_hdr(), data={
+            "name": "带油费的卡", "type": "unit", "unit_class": "infantry",
+            "cost_g": 30, "cost_z": 1, "cost_oil": 8},
+            content_type="multipart/form-data", follow_redirects=True)
+        self.assertEqual(self.sql(
+            "SELECT cost_oil FROM cards WHERE id=?", (cid["id"],))[0]["cost_oil"], 8)
+        html = self.client.get(f"/card/{cid['id']}").get_data(as_text=True)
+        self.assertIn("🛢 8", html)
+
+    def test_oil_cost_defaults_zero(self):
+        """旧流程不填油费 → 默认 0，旧卡数据不报错。"""
+        self.register("oldstyle", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "无油费卡", "type": "unit", "unit_class": "infantry"},
+            content_type="multipart/form-data", follow_redirects=True)
+        cid = self.sql("SELECT id, cost_oil FROM cards WHERE name='无油费卡'")[0]
+        self.assertEqual(cid["cost_oil"], 0)
+        html = self.client.get(f"/card/{cid['id']}").get_data(as_text=True)
+        self.assertIn("油费", html)  # 详情属性表始终显示该行
+
+
 class TestMessages(Base):
     """站内消息：生成、去重、角标时间点机制、分页、隐私、死链处理。"""
 
