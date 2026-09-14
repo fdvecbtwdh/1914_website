@@ -48,7 +48,7 @@
   <div class="gcard-footer">
     <span class="nation">{{ nations.get(card.nation, card.nation) }}</span>
     <span class="cls">{{ unit_classes.get(card.unit_class, card.unit_class or '指令') }} · {{ rarities.get(card.rarity, card.rarity) }}卡</span>
-    <button class="card-tag-badge tag-{{ ctag }}" data-tag="{{ ctag }}" title="{{ ctag }}：{{ cdesc }}">{{ ctag }}</button>
+    {% if ctag %}<button class="card-tag-badge tag-{{ ctag }}" data-tag="{{ ctag }}" title="{{ ctag }}：{{ cdesc }}">{{ ctag }}</button>{% endif %}
   </div>
 </div>
 {%- if link -%}

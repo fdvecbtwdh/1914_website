@@ -63,7 +63,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         return {
             "current_user": u,
             "csrf_token": csrf_token,
-            "is_moderator": is_moderator,
+            # 注意注入调用结果：若注入函数本身，模板 {% if is_moderator %}
+            # 判断的是函数真值（恒真），游客/普通用户会看到版主操作入口
+            "is_moderator": is_moderator(),
             "site_name": app.config["SITE_NAME"],
             "site_url": app.config["SITE_URL"],
             "site_domain": app.config["SITE_DOMAIN"],

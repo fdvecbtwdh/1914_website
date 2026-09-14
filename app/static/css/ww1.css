@@ -167,11 +167,13 @@ table td, table th { border: 1px solid var(--line); padding: .35em .7em; }
 }
 .gcard-top {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 10px 4px; gap: 6px;
+  padding: 8px 10px 4px; gap: 6px; flex-wrap: wrap; row-gap: 4px;
 }
 .gcard-name {
   font-weight: 700; font-size: 1.06rem; line-height: 1.2; letter-spacing: .04em;
   text-shadow: 0 1px 0 rgba(255,255,255,.4);
+  /* 卡名不随费用徽章被压缩成一字一行：保底宽度 + 长名可断行 */
+  flex: 1 1 auto; min-width: 4.5em; overflow-wrap: anywhere;
 }
 .gcard-costs { display: flex; gap: 5px; flex-shrink: 0; }
 .cost-chip {
@@ -722,4 +724,22 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
 .filter-chips { flex-wrap: wrap; row-gap: 6px; }
 .filter-chips .chip-label {
   color: var(--muted); font-size: .85rem; padding: 0 2px 0 8px;
+}
+
+/* 筛选条控件恢复固有宽度（全局 input/select width:100% 会把筛选栏控件
+   拉满整行导致纵向堆叠；此规则需位于全局表单规则之后） */
+.filter-bar input, .filter-bar select { width: auto; }
+.filter-bar input[type="search"], .filter-bar input[type="text"] { min-width: 220px; }
+
+/* 窄屏数据表：禁止逐字压缩（中文表头/用户名会被压成一字一行），
+   改为保持可读最小宽度并横向滚动查看 */
+@media (max-width: 760px) {
+  table.data { display: block; overflow-x: auto; min-width: 560px; }
+}
+
+/* 窄屏表格：短内容列（表头/用户名/徽章/操作）不再被逐字压缩成竖排；
+   显式带 max-width 的长文本列保持换行。表格整体横向滚动查看 */
+@media (max-width: 760px) {
+  table.data th, table.data td { white-space: nowrap; }
+  table.data td[style*="max-width"] { white-space: normal; overflow-wrap: anywhere; }
 }

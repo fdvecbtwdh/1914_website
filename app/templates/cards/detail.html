@@ -10,7 +10,7 @@
   <nav class="breadcrumb"><a href="/cards">卡牌社区</a> / {{ card.name }}
     {% if card.source == 'official' %} <span class="badge badge-brass">官方</span>{% else %} <span class="badge">玩家自制</span>{% endif %}
     {% set ctag = card.tag if 'tag' in card.keys() else '正式' %}
-    <button class="card-tag-badge tag-{{ ctag }}" data-tag="{{ ctag }}" title="{{ ctag }}：{{ card_tag_descs.get(ctag, '') }}">{{ ctag }}</button>
+    {% if ctag %}<button class="card-tag-badge tag-{{ ctag }}" data-tag="{{ ctag }}" title="{{ ctag }}：{{ card_tag_descs.get(ctag, '') }}">{{ ctag }}</button>{% endif %}
     {% if card.status == 'hidden' %} <span class="badge badge-red">已隐藏</span>{% endif %}
   </nav>
 
