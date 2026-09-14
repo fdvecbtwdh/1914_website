@@ -32,7 +32,7 @@
         {% endif %}
         {% if card.source == 'official' %}
           <a class="btn btn-sm btn-brass" {% if current_user %}href="/card/{{ card.id }}/propose"{% else %}href="/login?next=/card/{{ card.id }}/propose"{% endif %}
-             title="对这张官方卡提出你的修改方案，社区投票 + 管理员审核">📜 创建修改提案</a>
+             title="对官方卡牌提交修改提案，社区投票 + 管理员审核">📜 创建修改提案</a>
           {% if is_admin_user %}<a class="btn btn-sm" href="/card/{{ card.id }}/edit">编辑（管理员）</a>{% endif %}
         {% else %}
           {% if current_user and current_user['id'] == card.author_id %}
@@ -47,7 +47,7 @@
       {% if proposal_count %}
       <div style="text-align:center;margin-top:10px">
         <a class="btn btn-sm" style="border-color:var(--brass)" href="/forum?category={{ proposal_category }}&card={{ card.id }}">
-          💬 有 {{ proposal_count }} 个关于这张卡牌的{{ '修改提案' if card.source == 'official' else '转正方案' }}正在讨论中</a>
+          💬 有 {{ proposal_count }} 个关于这张卡牌的{{ '修改提案' if card.source == 'official' else '转正提案' }}正在讨论中</a>
       </div>
       {% endif %}
     </div>

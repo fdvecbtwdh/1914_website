@@ -19,7 +19,7 @@
     {% if can_post %}
       <a class="btn btn-brass" href="/forum/new?category={{ category|urlencode }}" style="margin-left:auto">✎ 发布帖子</a>
     {% elif not current_user and not is_proposal_board %}
-      <a class="btn btn-brass" href="/login?next=/forum/new" style="margin-left:auto">登录后发帖</a>
+      <a class="btn btn-brass" href="/login?next=/forum/new" style="margin-left:auto">登录后发布帖子</a>
     {% elif is_proposal_board %}
       <span class="sub" style="margin-left:auto">提案由 <a href="/cards">卡牌页面</a> 发起，本板块展示与讨论</span>
     {% endif %}

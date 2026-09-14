@@ -159,7 +159,7 @@ FORUM_BOARDS = (
     {"name": "卡牌设计", "icon": "🃏", "group": "卡牌社区",
      "desc": "卡牌设计理念、数值与效果讨论"},
     {"name": "卡牌修改提案", "icon": "🛠️", "group": "卡牌社区",
-     "desc": "对官方卡牌提交修改方案，社区投票 + 管理员审核",
+     "desc": "对官方卡牌提交修改提案，社区投票 + 管理员审核",
      "proposal": "modification"},
     {"name": "卡牌转正", "icon": "⭐", "group": "卡牌社区",
      "desc": "玩家自制卡牌申请转为官方正式卡牌", "proposal": "promotion"},

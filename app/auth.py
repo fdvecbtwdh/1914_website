@@ -524,12 +524,12 @@ def recover():
         check_csrf()
         ident = (request.form.get("ident") or "").strip().lstrip("@")
         if throttle("recover_entry", client_ip(), RECOVER_ENTRY_MAX, 15):
-            flash("尝试过于频繁，请稍后再试。", "warning")
+            flash("尝试过于频繁，请稍后再试", "warning")
             return render_template("auth/forgot.html")
         user = db.query("SELECT * FROM users WHERE username = ? OR email = ?",
                         (ident, ident.lower()), one=True)
         if user is None or user["is_banned"]:
-            flash("无法识别该账户，请检查用户名或邮箱是否正确。", "danger")
+            flash("无法识别该账户，请检查用户名或邮箱是否正确", "danger")
             return render_template("auth/forgot.html")
         methods = []
         if user["email"]:
@@ -537,7 +537,7 @@ def recover():
         if user["security_question"]:
             methods.append("question")
         if not methods:
-            flash("此账户没有设置可用的恢复方式，因此无法通过此功能恢复密码。", "danger")
+            flash("此账户没有设置可用的恢复方式，因此无法通过此功能恢复密码", "danger")
             return render_template("auth/forgot.html")
         session["recover_uid"] = user["id"]
         session["recover_methods"] = methods
@@ -564,11 +564,11 @@ def recover_email():
         return redirect(url_for("auth.recover"))
     ip = client_ip()
     if throttle("recover_mail", str(user["id"]), RECOVER_MAIL_MAX, 15) or        throttle("recover_mail_ip", ip, RECOVER_MAIL_IP_MAX, 15):
-        flash("恢复请求过于频繁，请稍后再试。", "warning")
+        flash("恢复请求过于频繁，请稍后再试", "warning")
         return redirect(url_for("auth.recover_methods"))
     from .emailer import send_mail, mail_configured
     if not mail_configured():
-        flash("邮件功能暂未启用，请联系管理员或改用安全问题恢复。", "warning")
+        flash("邮件功能暂未启用，请联系管理员或改用安全问题恢复", "warning")
         return redirect(url_for("auth.recover_methods"))
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -584,7 +584,7 @@ def recover_email():
             f'<p><a href="{link}">{link}</a></p>'
             f"<p>如果这不是你本人的操作，请忽略此邮件，账户不会受影响。</p>")
     if not send_mail(user["email"], f"{current_app.config['SITE_DOMAIN']} 密码恢复", html):
-        flash("恢复邮件发送失败，请稍后再试，或改用安全问题恢复。", "danger")
+        flash("恢复邮件发送失败，请稍后再试，或改用安全问题恢复", "danger")
         return redirect(url_for("auth.recover_methods"))
     return redirect(url_for("auth.recover_email_sent"))
 
@@ -606,7 +606,7 @@ def recover_question():
     ip = client_ip()
     if is_throttled("recover_q", username, RECOVER_Q_MAX, 15) or        is_throttled("recover_q_ip", ip, RECOVER_Q_IP_MAX, 15):
         session.pop("recover_uid", None)
-        flash("安全问题尝试次数过多，该账户的恢复功能已被暂时锁定，请稍后再试。", "danger")
+        flash("安全问题尝试次数过多，该账户的恢复功能已被暂时锁定，请稍后再试", "danger")
         return redirect(url_for("auth.login"))
     error = None
     if request.method == "POST":
@@ -633,7 +633,7 @@ def recover_question():
             clear_login_failures("recover_q", username)
             clear_login_failures("recover_q", ip)
             session.clear()
-            flash("密码已重置，请使用新密码登录。", "success")
+            flash("密码已重置，请使用新密码登录", "success")
             return redirect(url_for("auth.login"))
     return render_template("auth/recover_question.html",
                            question=user["security_question"], error=error)
@@ -668,6 +668,6 @@ def recover_reset():
             db.execute("DELETE FROM recovery_tokens WHERE user_id = ? AND used_at IS NULL",
                        (row["user_id"],))
             revoke_all_sessions(row["user_id"])
-            flash("密码已重置，请使用新密码登录。", "success")
+            flash("密码已重置，请使用新密码登录", "success")
             return redirect(url_for("auth.login"))
     return render_template("auth/recover_reset.html", token=token, error=error)

@@ -2,7 +2,7 @@
   <a href="/admin" {% if request.path == '/admin' %}class="active"{% endif %}>概览</a>
   <a href="/admin/users" {% if request.path.startswith('/admin/users') %}class="active"{% endif %}>用户</a>
   <a href="/admin/cards" {% if request.path.startswith('/admin/cards') %}class="active"{% endif %}>卡牌</a>
-  <a href="/admin/issues" {% if request.path.startswith('/admin/issues') %}class="active"{% endif %}>Issue</a>
+  <a href="/admin/issues" {% if request.path.startswith('/admin/issues') %}class="active"{% endif %}>Bug / Issues</a>
   <a href="/admin/comments" {% if request.path.startswith('/admin/comments') %}class="active"{% endif %}>评论</a>
   <a href="/admin/reports" {% if request.path.startswith('/admin/reports') %}class="active"{% endif %}>举报</a>
   <a href="/admin/labels" {% if request.path.startswith('/admin/labels') %}class="active"{% endif %}>标签</a>

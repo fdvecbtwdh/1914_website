@@ -1416,7 +1416,7 @@ class TestAccountRecovery(Base):
         self.logout()
         self.set_csrf()
         r = self._recover_entry("norecov")
-        self.assertIn("此账户没有设置可用的恢复方式，因此无法通过此功能恢复密码。",
+        self.assertIn("此账户没有设置可用的恢复方式，因此无法通过此功能恢复密码",
                       r.get_data(as_text=True))
 
     def test_email_recovery_flow(self):

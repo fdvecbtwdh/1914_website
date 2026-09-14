@@ -71,7 +71,7 @@
         <form method="post" action="/admin/reports/{{ r.id }}/action" style="display:flex;gap:5px;flex-wrap:wrap">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-danger" name="action" value="hide_content"
-                  onclick="return confirm('将隐藏/封禁被举报内容，确定？')">隐藏内容</button>
+                  onclick="return confirm('确定隐藏/封禁被举报内容吗？')">隐藏内容</button>
           <button class="btn btn-sm btn-primary" name="action" value="resolve">标记已处理</button>
           <button class="btn btn-sm" name="action" value="dismiss">忽略</button>
         </form>
