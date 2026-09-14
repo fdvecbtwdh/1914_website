@@ -441,6 +441,36 @@ class TestCards(Base):
         self.assertEqual(row2["attack"], 6)
         self.assertEqual(row2["cost_g"], 70)
 
+    def test_edit_page_prefills_abilities(self):
+        """回归：编辑页必须回填词条勾选与等级（含 坚守2 这类带等级词条）。"""
+        import re
+        h = self.csrf_hdr()
+        r = self.client.post("/cards/new", headers=h, data={
+            "name": "词条回填卡", "type": "unit", "unit_class": "tank",
+            "cost_g": "30", "cost_z": "1", "attack": "3", "defense": "4",
+            "abilities": ["坚守", "突击"], "ability_level_坚守": "2",
+        }, content_type="multipart/form-data", follow_redirects=True)
+        self.assertIn("投稿成功", r.get_data(as_text=True))
+        row = self.sql("SELECT * FROM cards WHERE name='词条回填卡'")[0]
+        self.assertEqual(json.loads(row["abilities"]), ["坚守2", "突击"])
+        # 作者编辑页：坚守、突击均勾选，坚守等级回填 2
+        html = re.sub(r"\s+", " ", self.client.get(f"/card/{row['id']}/edit").get_data(as_text=True))
+        self.assertIn('value="坚守" checked', html)
+        self.assertIn('value="突击" checked', html)
+        self.assertRegex(html, r'name="ability_level_坚守"[^>]*value="2"')
+        # 官方卡同理（管理员编辑页）
+        u, p = self.make_admin("abladmin", "Passw0rd123")
+        self.login(u, p)
+        self.set_csrf()
+        self.client.post("/cards/new", headers=self.csrf_hdr(), data={
+            "name": "官方词条卡", "type": "unit", "unit_class": "infantry",
+            "cost_g": "10", "cost_z": "1", "attack": "2", "defense": "3",
+            "abilities": ["突击"], "source": "official",
+        }, content_type="multipart/form-data", follow_redirects=True)
+        official = self.sql("SELECT * FROM cards WHERE name='官方词条卡'")[0]
+        html = re.sub(r"\s+", " ", self.client.get(f"/card/{official['id']}/edit").get_data(as_text=True))
+        self.assertIn('value="突击" checked', html)
+
     def test_cannot_edit_others_card(self):
         h = self.csrf_hdr()
         with self.app.app_context():

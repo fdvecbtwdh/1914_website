@@ -373,7 +373,7 @@ def card_edit(card_id: int):
             auth.audit("card_edit", "card", card_id, fields["name"])
             flash("卡牌已更新", "success")
             return redirect(url_for("cards.card_detail", card_id=card_id))
-    card = dict(row)
+    card = decorate_card(dict(row))  # abilities_list 等（编辑表单回填词条勾选）
     card["labels"] = db.query(
         """SELECT l.name FROM content_labels cl JOIN labels l ON l.id = cl.label_id
            WHERE cl.content_type = 'card' AND cl.content_id = ?""", (card_id,))
