@@ -143,12 +143,41 @@ ISSUE_TAGS = {
     "功能建议": "新功能与改进建议",
 }
 
-# 论坛分类（forum_posts.category）
-FORUM_CATEGORIES = ("讨论", "攻略", "求助", "建议", "闲聊", "卡牌修改提案", "卡牌转正")
-DEFAULT_FORUM_CATEGORY = "讨论"
-# 提案板块：帖子由提案系统自动创建，手动发帖/编辑不可选
-PROPOSAL_CATEGORIES = {"卡牌修改提案": "modification", "卡牌转正": "promotion"}
-POSTABLE_CATEGORIES = tuple(c for c in FORUM_CATEGORIES if c not in PROPOSAL_CATEGORIES)
+# 论坛板块 — forum_posts.category 即板块标识（不另建 Board 表）。
+# 顺序 = 论坛首页板块卡片的展示顺序；desc 显示在板块卡片内（弱化文字）。
+FORUM_BOARDS = (
+    {"name": "网站更新日志", "icon": "📢", "group": "官方信息",
+     "desc": "网站功能、修复与改版记录", "admin_only": True},
+    {"name": "游戏更新日志", "icon": "🎮", "group": "官方信息",
+     "desc": "游戏版本更新、平衡调整与 Bug 修复", "admin_only": True},
+    {"name": "游戏机制", "icon": "⚙️", "group": "游戏讨论",
+     "desc": "游戏玩法、规则、资源与战斗机制讨论"},
+    {"name": "游戏攻略", "icon": "📖", "group": "游戏讨论",
+     "desc": "玩法教学、卡组思路与战术攻略"},
+    {"name": "游戏资料", "icon": "📚", "group": "游戏讨论",
+     "desc": "机制资料、单位资料与历史背景"},
+    {"name": "卡牌设计", "icon": "🃏", "group": "卡牌社区",
+     "desc": "卡牌设计理念、数值与效果讨论"},
+    {"name": "卡牌修改提案", "icon": "🛠️", "group": "卡牌社区",
+     "desc": "对官方卡牌提交修改方案，社区投票 + 管理员审核",
+     "proposal": "modification"},
+    {"name": "卡牌转正", "icon": "⭐", "group": "卡牌社区",
+     "desc": "玩家自制卡牌申请转为官方正式卡牌", "proposal": "promotion"},
+    {"name": "创作分享", "icon": "🎨", "group": "玩家社区",
+     "desc": "玩家作品、同人图、视频与 MOD 分享"},
+    {"name": "闲聊", "icon": "💬", "group": "玩家社区",
+     "desc": "与游戏无关的日常闲谈"},
+)
+FORUM_BOARD_MAP = {b["name"]: b for b in FORUM_BOARDS}
+FORUM_CATEGORIES = tuple(b["name"] for b in FORUM_BOARDS)
+PROPOSAL_CATEGORIES = {b["name"]: b["proposal"] for b in FORUM_BOARDS if b.get("proposal")}
+ADMIN_ONLY_CATEGORIES = tuple(b["name"] for b in FORUM_BOARDS if b.get("admin_only"))
+POSTABLE_CATEGORIES = tuple(n for n in FORUM_CATEGORIES if n not in PROPOSAL_CATEGORIES)
+DEFAULT_FORUM_CATEGORY = "游戏机制"
+# 历史分类 → 新板块（幂等迁移，仅 UPDATE 不删除；见 db._migrate）
+FORUM_CATEGORY_MIGRATION = {
+    "讨论": "游戏机制", "攻略": "游戏攻略", "求助": "游戏机制", "建议": "闲聊",
+}
 
 # 卡牌提案状态（card_proposals.status）
 PROPOSAL_STATUSES = {

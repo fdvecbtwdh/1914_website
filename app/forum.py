@@ -10,13 +10,21 @@ from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, url_for)
 
 from . import db, auth, interactions
-from .gameconstants import (FORUM_CATEGORIES, DEFAULT_FORUM_CATEGORY,
-                            POSTABLE_CATEGORIES, PROPOSAL_CATEGORIES,
+from .gameconstants import (FORUM_CATEGORIES, FORUM_BOARDS, FORUM_BOARD_MAP,
+                            DEFAULT_FORUM_CATEGORY, POSTABLE_CATEGORIES,
+                            ADMIN_ONLY_CATEGORIES, PROPOSAL_CATEGORIES,
                             PROPOSAL_STATUSES)
 
 bp = Blueprint("forum", __name__)
 
 PAGE_SIZE = 20
+
+
+def _postable_categories_for_user() -> tuple:
+    """当前用户可手动发帖的板块：提案板块永远排除，日志板块仅管理员。"""
+    if auth.is_admin():
+        return POSTABLE_CATEGORIES
+    return tuple(c for c in POSTABLE_CATEGORIES if c not in ADMIN_ONLY_CATEGORIES)
 
 
 def _post_or_404(post_id: int):
@@ -43,12 +51,50 @@ def _proposal_for_post(post_id: int) -> dict | None:
 
 @bp.route("/forum")
 def list_posts():
-    sort = request.args.get("sort", "latest")
+    """无 category 参数 = 论坛板块首页（板块卡片网格）；
+    带 category = 进入板块，复用现有帖子列表 + 筛选。"""
     category = request.args.get("category", "")
+    if category not in FORUM_CATEGORIES:
+        return _board_home()
+    return _board_posts(category)
+
+
+def _board_home():
+    """论坛首页：板块卡片网格（不直接堆帖子列表）。"""
+    stats = {r["category"]: r for r in db.query(
+        """SELECT category, COUNT(*) AS n, MAX(updated_at) AS last_at
+           FROM forum_posts WHERE status IN ('visible','archived')
+           GROUP BY category""")}
+    boards = []
+    for b in FORUM_BOARDS:
+        d = dict(b)
+        s = stats.get(b["name"])
+        d["post_count"] = s["n"] if s else 0
+        d["last_at"] = s["last_at"] if s else None
+        boards.append(d)
+    return render_template("forum/home.html", boards=boards)
+
+
+def _board_posts(category: str):
+    sort = request.args.get("sort", "latest")
+    state = request.args.get("state", "")       # ''=未归档 / archived / all
+    pstatus = request.args.get("pstatus", "")   # 提案板块：按提案状态筛选
     card_id = request.args.get("card", 0, type=int)
     page = max(1, min(request.args.get("page", 1, type=int), 500))
+    board = FORUM_BOARD_MAP[category]
+    is_proposal_board = category in PROPOSAL_CATEGORIES
 
-    where, args = ["f.status IN ('visible','archived')"], []
+    where, args = ["f.status != 'deleted'", "f.status != 'hidden'"], []
+    if is_proposal_board and pstatus in PROPOSAL_STATUSES:
+        # 按提案状态筛选：帖子可见性由提案状态决定（批准/未批准 → 归档帖）
+        where.append("cp.status = ?")
+        args.append(pstatus)
+    elif state == "archived":
+        where.append("f.status = 'archived'")
+    elif state == "all":
+        pass
+    else:
+        where.append("f.status = 'visible'")  # 默认：未归档
     if category in FORUM_CATEGORIES:
         where.append("f.category = ?")
         args.append(category)
@@ -62,6 +108,8 @@ def list_posts():
                  "proposal_score DESC, f.created_at DESC, f.id DESC")
     elif sort == "score":
         order = "proposal_score DESC, f.created_at DESC, f.id DESC"
+    elif sort == "replies":
+        order = "reply_count DESC, f.created_at DESC, f.id DESC"
     elif sort == "recent_reply":
         order = "COALESCE(r.reply_at, f.created_at) DESC, f.id DESC"
     else:
@@ -82,8 +130,8 @@ def list_posts():
         WHERE {where_sql}"""
     total = db.query(f"SELECT COUNT(*) AS n {base}", tuple(args), one=True)["n"]
     rows = db.query(
-        f"""SELECT f.*, u.username AS author_name, IFNULL(r.rc, 0) AS reply_count,
-            r.reply_at, r.last_reply_by,
+        f"""SELECT f.*, u.username AS author_name,
+            IFNULL(r.rc, 0) AS reply_count, r.reply_at, r.last_reply_by,
             cp.id AS proposal_id, cp.status AS proposal_status,
             cp.type AS proposal_type, cp.card_id AS proposal_card_id,
             IFNULL(pv.sc, 0) AS proposal_score {base} ORDER BY {order} LIMIT ? OFFSET ?""",
@@ -103,7 +151,9 @@ def list_posts():
 
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("forum/list.html", posts=posts, total=total, page=page,
-                           pages=pages, sort=sort, category=category,
+                           pages=pages, sort=sort, category=category, board=board,
+                           is_proposal_board=is_proposal_board, state=state,
+                           pstatus=pstatus, proposal_statuses=PROPOSAL_STATUSES,
                            categories=FORUM_CATEGORIES, card_id=card_id,
                            card_name=card_name)
 
@@ -127,11 +177,11 @@ def new_post():
             except Exception:
                 pass
             flash("发帖过于频繁，请稍后再试", "danger")
-            return render_template("forum/form.html", categories=POSTABLE_CATEGORIES,
+            return render_template("forum/form.html", categories=_postable_categories_for_user(),
                                    form_values=request.form, post=None, editing=False), 429
         values = _validate()
         if values is None:
-            return render_template("forum/form.html", categories=POSTABLE_CATEGORIES,
+            return render_template("forum/form.html", categories=_postable_categories_for_user(),
                                    form_values=request.form, post=None, editing=False), 400
         pid = db.execute(
             """INSERT INTO forum_posts (title, body, category, author_id)
@@ -141,7 +191,7 @@ def new_post():
         auth.audit("forum_post_create", "forum_post", pid, values["title"])
         flash("帖子发布成功", "success")
         return redirect(url_for("forum.detail", post_id=pid))
-    return render_template("forum/form.html", categories=POSTABLE_CATEGORIES,
+    return render_template("forum/form.html", categories=_postable_categories_for_user(),
                            form_values=None, post=None, editing=False)
 
 
@@ -184,7 +234,7 @@ def edit_post(post_id: int):
             return redirect(url_for("forum.detail", post_id=post_id))
         values = _validate()
         if values is None:
-            return render_template("forum/form.html", categories=POSTABLE_CATEGORIES,
+            return render_template("forum/form.html", categories=_postable_categories_for_user(),
                                    form_values=request.form, post=post, editing=True), 400
         db.execute(
             """UPDATE forum_posts SET title = ?, body = ?, category = ?,
@@ -193,7 +243,7 @@ def edit_post(post_id: int):
         auth.audit("forum_post_edit", "forum_post", post_id, values["title"])
         flash("帖子已更新", "success")
         return redirect(url_for("forum.detail", post_id=post_id))
-    return render_template("forum/form.html", categories=POSTABLE_CATEGORIES,
+    return render_template("forum/form.html", categories=_postable_categories_for_user(),
                            form_values=None, post=post, editing=True)
 
 
@@ -249,6 +299,9 @@ def _validate():
                 else DEFAULT_FORUM_CATEGORY)
     if category in PROPOSAL_CATEGORIES:
         flash("提案板块的帖子由提案系统自动创建，请从卡牌页面发起提案", "danger")
+        return None
+    if category in ADMIN_ONLY_CATEGORIES and not auth.is_admin():
+        flash("该板块仅管理员可以发帖", "danger")
         return None
     if not (3 <= len(title) <= 80):
         flash("标题需要 3-80 个字符", "danger")

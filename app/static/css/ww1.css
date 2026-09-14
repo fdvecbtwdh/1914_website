@@ -688,3 +688,38 @@ dialog.report-dialog::backdrop { background: rgba(0,0,0,.6); }
   .proposal-duel .duel-side { width: 100%; max-width: 300px; flex-basis: auto; }
   .proposal-duel .duel-arrow { transform: rotate(90deg); }
 }
+
+/* ---------- 论坛板块首页 ---------- */
+.board-group {
+  margin: 22px 0 10px; font-size: 1.02rem; color: var(--brass-bright);
+  letter-spacing: .06em;
+}
+.board-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+}
+.board-card {
+  display: flex; flex-direction: column; gap: 7px;
+  background: var(--panel); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 15px 16px 13px;
+  color: var(--text); text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.board-card:hover {
+  border-color: var(--brass); transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+}
+.board-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.board-icon { font-size: 1.35rem; line-height: 1; flex: 0 0 auto; }
+.board-name { font-weight: bold; font-size: 1.03rem; overflow-wrap: anywhere; }
+.board-desc {
+  margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.5;
+  flex: 1 1 auto;
+}
+.board-meta { margin: 0; color: var(--muted); font-size: .8rem; opacity: .8; }
+
+/* 板块页筛选条 */
+.filter-chips { flex-wrap: wrap; row-gap: 6px; }
+.filter-chips .chip-label {
+  color: var(--muted); font-size: .85rem; padding: 0 2px 0 8px;
+}

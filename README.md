@@ -131,7 +131,7 @@ art → 卡面图    flavor_text → 风味文字
 ## 测试
 
 ```powershell
-.venv\Scripts\python -m unittest tests.test_site -v   # 137 项断言：账号/安全/投票/评论/Issue/导入/后台/消息/恢复/提案
+.venv\Scripts\python -m unittest tests.test_site -v   # 142 项断言：账号/安全/投票/评论/Issue/导入/后台/消息/恢复/提案/板块
 ```
 
 ## 目录结构
@@ -165,7 +165,7 @@ app/
 └── static/            WW1 军事风格 CSS / JS / 字体
 data/                  数据库 + 上传文件（gitignore）
 seed/cards/            游戏 JSON 内置副本（导入回退源）
-tests/test_site.py     137 项自动化测试
+tests/test_site.py     142 项自动化测试
 manage.py              init-db / import-cards / create-admin / create-labels / stats
 wsgi.py / run.py       生产入口(waitress) / 开发入口
 scripts/*.ps1          安装 / 初始化 / 启动脚本

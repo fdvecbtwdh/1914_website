@@ -1686,7 +1686,7 @@ class TestOrderCardCost(Base):
 class TestForum(Base):
     """论坛：浏览、发帖、回复、通知、举报、权限、排序与分类。"""
 
-    def _post(self, title="论坛测试帖标题", body="正文内容", category="讨论", who=None):
+    def _post(self, title="论坛测试帖标题", body="正文内容", category="游戏机制", who=None):
         if who:
             self.logout()
             self.login(who, "Passw0rd123")
@@ -1699,7 +1699,11 @@ class TestForum(Base):
     def test_guest_browse_and_login_gate(self):
         r = self.client.get("/forum")
         self.assertEqual(r.status_code, 200)
-        self.assertIn("还没有帖子", r.get_data(as_text=True))
+        html = r.get_data(as_text=True)
+        # 论坛首页 = 板块卡片网格
+        self.assertIn("选择一个板块进入讨论", html)
+        self.assertIn("网站更新日志", html)
+        self.assertIn("游戏机制", html)
         # 未登录发帖 → 跳登录
         r = self.client.get("/forum/new", follow_redirects=False)
         self.assertEqual(r.status_code, 302)
@@ -1709,10 +1713,10 @@ class TestForum(Base):
         self.set_csrf()
         self.client.post("/forum/new", headers=self.csrf_hdr(), data={
             "title": "论坛帖子标题甲", "body": "**大家好**，来讨论玩法。",
-            "category": "攻略"}, follow_redirects=True)
+            "category": "游戏攻略"}, follow_redirects=True)
         pid = self.sql("SELECT id FROM forum_posts WHERE title='论坛帖子标题甲'")[0]["id"]
         self.assertEqual(
-            self.sql("SELECT category FROM forum_posts WHERE id=?", (pid,))[0]["category"], "攻略")
+            self.sql("SELECT category FROM forum_posts WHERE id=?", (pid,))[0]["category"], "游戏攻略")
         html = self.client.get(f"/forum/{pid}").get_data(as_text=True)
         self.assertIn("<strong>大家好</strong>", html)
         # fa 回复自己的帖子 → 不产生通知
@@ -1745,12 +1749,13 @@ class TestForum(Base):
         self.register("fc", "Passw0rd123")
         h = self.csrf_hdr()
         self.client.post("/forum/new", headers=h, data={
-            "title": "甲帖排序标题", "body": "x", "category": "攻略"}, follow_redirects=True)
+            "title": "甲帖排序标题", "body": "x", "category": "游戏攻略"}, follow_redirects=True)
         aid = self.sql("SELECT id FROM forum_posts WHERE title='甲帖排序标题'")[0]["id"]
         self.client.post("/forum/new", headers=h, data={
-            "title": "乙帖排序标题", "body": "x", "category": "闲聊"}, follow_redirects=True)
+            "title": "乙帖排序标题", "body": "x", "category": "游戏攻略"}, follow_redirects=True)
+        board_qs = "/forum?category=游戏攻略"
         # 默认最新发布：乙在前
-        html = self.client.get("/forum").get_data(as_text=True)
+        html = self.client.get(board_qs).get_data(as_text=True)
         self.assertLess(html.find("乙帖排序标题"), html.find("甲帖排序标题"))
         # 回复甲帖后，按最新回复甲帖提前（时间戳秒级精度，需隔 1 秒）
         import time
@@ -1758,12 +1763,16 @@ class TestForum(Base):
         self.set_csrf()
         self.client.post("/api/comment/forum_post/%d" % aid, headers=self.csrf_hdr(),
                          data={"body": "顶甲帖"})
-        html = self.client.get("/forum?sort=recent_reply").get_data(as_text=True)
+        html = self.client.get(board_qs + "&sort=recent_reply").get_data(as_text=True)
         self.assertLess(html.find("甲帖排序标题"), html.find("乙帖排序标题"))
-        # 分类筛选
-        html = self.client.get("/forum?category=攻略").get_data(as_text=True)
+        # 最多回复：甲帖有回复排前
+        html = self.client.get(board_qs + "&sort=replies").get_data(as_text=True)
+        self.assertLess(html.find("甲帖排序标题"), html.find("乙帖排序标题"))
+        # 分类筛选：其他板块看不到甲帖
+        html = self.client.get("/forum?category=闲聊").get_data(as_text=True)
+        self.assertNotIn("甲帖排序标题", html)
+        html = self.client.get(board_qs).get_data(as_text=True)
         self.assertIn("甲帖排序标题", html)
-        self.assertNotIn("乙帖排序标题", html)
 
     def test_permissions_and_moderation(self):
         self.register("ownera", "Passw0rd123")
@@ -3050,8 +3059,8 @@ class TestCardProposals(Base):
         self.register("poster", "Passw0rd123")
         self.set_csrf()
         self.client.post("/forum/new", headers=self.csrf_hdr(), data={
-            "csrf_token": "t", "title": "将被归档的帖子标题", "body": "内容"},
-            follow_redirects=True)
+            "csrf_token": "t", "title": "将被归档的帖子标题", "body": "内容",
+            "category": "闲聊"}, follow_redirects=True)
         post = self.sql("SELECT * FROM forum_posts ORDER BY id DESC LIMIT 1")[0]
         # 版主归档
         self.logout()
@@ -3074,9 +3083,9 @@ class TestCardProposals(Base):
         self.login("poster", "Passw0rd123")
         r = self.client.get(f"/forum/{post['id']}/edit")
         self.assertEqual(r.status_code, 403)
-        # 列表可见归档帖
+        # 列表可见归档帖（板块页 + 已归档筛选）
         self.logout()
-        listing = self.client.get("/forum").get_data(as_text=True)
+        listing = self.client.get("/forum?category=闲聊&state=all").get_data(as_text=True)
         self.assertIn("将被归档的帖子标题", listing)
         # 解除归档恢复
         self._admin_login()
@@ -3110,6 +3119,139 @@ class TestCardProposals(Base):
         listing = self.client.get(
             f"/forum?category=卡牌修改提案&card={card['id']}").get_data(as_text=True)
         self.assertIn("修改提案", listing)
+
+
+class TestForumBoards(Base):
+    """论坛板块化：首页板块网格、板块权限、归档/提案状态筛选、历史分类迁移。"""
+
+    def _official_card(self):
+        rows = self.sql("SELECT * FROM cards WHERE source='official' ORDER BY id LIMIT 1")
+        if not rows:
+            with self.app.app_context():
+                from app.card_sync import import_official_cards
+                import_official_cards()
+            rows = self.sql("SELECT * FROM cards WHERE source='official' ORDER BY id LIMIT 1")
+        return rows[0]
+
+    def test_home_shows_board_cards(self):
+        self.register("boarder", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "title": "板块网格验证帖标题", "body": "x",
+            "category": "游戏机制"}, follow_redirects=True)
+        self.logout()
+        html = self.client.get("/forum").get_data(as_text=True)
+        # 十个板块卡片全部出现（名称 + 弱化描述）
+        for name, desc in (("网站更新日志", "网站功能、修复与改版记录"),
+                           ("游戏更新日志", "游戏版本更新"),
+                           ("游戏机制", "战斗机制讨论"),
+                           ("卡牌修改提案", "社区投票"),
+                           ("卡牌转正", "转为官方正式卡牌"),
+                           ("创作分享", "MOD"),
+                           ("闲聊", "日常闲谈")):
+            self.assertIn(name, html)
+            self.assertIn(desc, html)
+        # 帖子不出现在首页，只出现在板块页
+        self.assertNotIn("板块网格验证帖标题", html)
+        board = self.client.get("/forum?category=游戏机制").get_data(as_text=True)
+        self.assertIn("板块网格验证帖标题", board)
+
+    def test_admin_only_boards(self):
+        # 普通用户：发帖被拒（服务端），表单不显示日志板块
+        self.register("plainb", "Passw0rd123")
+        form = self.client.get("/forum/new").get_data(as_text=True)
+        self.assertNotIn("网站更新日志", form)
+        self.set_csrf()
+        r = self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "title": "伪造的更新日志帖标题", "body": "x",
+            "category": "网站更新日志"}, follow_redirects=True)
+        self.assertIn("仅管理员可以发帖", r.get_data(as_text=True))
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM forum_posts")[0]["c"], 0)
+        # 管理员：可发帖，表单含日志板块
+        self.logout()
+        u, p = self.make_admin("boardadmin", "Passw0rd123")
+        self.login(u, p)
+        form = self.client.get("/forum/new").get_data(as_text=True)
+        self.assertIn("网站更新日志", form)
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "title": "官方网站更新日志标题", "body": "改了论坛",
+            "category": "网站更新日志"}, follow_redirects=True)
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM forum_posts "
+                                  "WHERE category='网站更新日志'")[0]["c"], 1)
+
+    def test_state_filter_archived(self):
+        self.register("archiver", "Passw0rd123")
+        self.set_csrf()
+        self.client.post("/forum/new", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "title": "归档筛选验证帖标题", "body": "x",
+            "category": "闲聊"}, follow_redirects=True)
+        pid = self.sql("SELECT id FROM forum_posts WHERE title='归档筛选验证帖标题'")[0]["id"]
+        self.logout()
+        u, p = self.make_admin("archadmin", "Passw0rd123")
+        self.login(u, p)
+        self.set_csrf()
+        self.client.post(f"/forum/{pid}/archive", headers=self.csrf_hdr(),
+                         data={"action": "archive"})
+        self.logout()
+        qs = "/forum?category=闲聊"
+        self.assertNotIn("归档筛选验证帖标题", self.client.get(qs).get_data(as_text=True))
+        self.assertIn("归档筛选验证帖标题",
+                      self.client.get(qs + "&state=archived").get_data(as_text=True))
+        self.assertIn("归档筛选验证帖标题",
+                      self.client.get(qs + "&state=all").get_data(as_text=True))
+
+    def test_proposal_board_filters_and_no_posting(self):
+        card = self._official_card()
+        # 发起修改提案 → 批准归档
+        self.register("pfilter", "Passw0rd123")
+        self.set_csrf()
+        self.client.post(f"/card/{card['id']}/propose", headers=self.csrf_hdr(), data={
+            "csrf_token": "t", "name": card["name"], "type": "unit",
+            "unit_class": "infantry", "nation": "neutral", "rarity": "common",
+            "cost_g": "20", "cost_z": "1", "cost_oil": "0", "attack": "9",
+            "defense": "3", "description": "d", "flavor_text": "",
+            "reason": "数值不合理，攻击力明显偏低，申请加强。"}, follow_redirects=True)
+        pid = self.sql("SELECT id FROM card_proposals ORDER BY id DESC LIMIT 1")[0]["id"]
+        self.logout()
+        u, p = self.make_admin("pfadmin", "Passw0rd123")
+        self.login(u, p)
+        self.set_csrf()
+        self.client.post(f"/proposals/{pid}/review", headers=self.csrf_hdr(),
+                         data={"action": "approve"})
+        self.logout()
+        qs = "/forum?category=卡牌修改提案"
+        html = self.client.get(qs).get_data(as_text=True)
+        # 无普通发帖入口（游客视角）
+        self.assertNotIn("发布帖子", html)
+        self.assertIn("提案由", html)
+        # 默认未归档 → 已批准提案（归档帖）不显示
+        self.assertNotIn("《火炮》", html)
+        # 已批准筛选可见；已归档可见
+        approved = self.client.get(qs + "&pstatus=approved").get_data(as_text=True)
+        self.assertIn("《火炮》", approved)
+        archived = self.client.get(qs + "&state=archived").get_data(as_text=True)
+        self.assertIn("[修改提案]", archived)
+        # 讨论中筛选：为空
+        self.assertIn("还没有帖子",
+                      self.client.get(qs + "&pstatus=active").get_data(as_text=True))
+
+    def test_category_migration_preserves_posts(self):
+        # 模拟历史数据：旧分类帖子
+        self.sql("INSERT INTO forum_posts (title, body, category, author_id) "
+                 "VALUES ('历史迁移帖标题', 'x', '讨论', NULL)")
+        self.sql("INSERT INTO forum_posts (title, body, category, author_id) "
+                 "VALUES ('历史攻略帖标题', 'x', '攻略', NULL)")
+        with self.app.app_context():
+            from app import db as db_mod
+            db_mod.init_db(self.app.config["DB_PATH"])  # 幂等重跑触发迁移
+        rows = {r["title"]: r["category"] for r in self.sql(
+            "SELECT title, category FROM forum_posts WHERE title LIKE '历史%'")}
+        self.assertEqual(rows["历史迁移帖标题"], "游戏机制")
+        self.assertEqual(rows["历史攻略帖标题"], "游戏攻略")
+        # 迁移后仍可在板块页看到
+        html = self.client.get("/forum?category=游戏机制").get_data(as_text=True)
+        self.assertIn("历史迁移帖标题", html)
 
 
 if __name__ == "__main__":

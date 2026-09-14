@@ -141,3 +141,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if vcols and "direction" not in vcols:
         # 提案投票需要方向（+1 赞成 / -1 反对）；旧数据（卡牌/Issue/评论）恒为赞成
         conn.execute("ALTER TABLE votes ADD COLUMN direction INTEGER NOT NULL DEFAULT 1")
+    fcols = [r[1] for r in conn.execute("PRAGMA table_info(forum_posts)")]
+    if fcols and "category" in fcols:
+        # 论坛板块化：历史分类安全迁移到新板块（仅 UPDATE 映射，不删除任何帖子）
+        from .gameconstants import FORUM_CATEGORY_MIGRATION
+        for old, new in FORUM_CATEGORY_MIGRATION.items():
+            conn.execute("UPDATE forum_posts SET category = ? WHERE category = ?",
+                         (new, old))
