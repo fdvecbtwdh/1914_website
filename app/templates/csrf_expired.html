@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}页面已过期 — {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container" style="text-align:center;padding:70px 20px">
+  <h1 style="font-size:3rem;color:var(--brass);margin:0">🔒</h1>
+  <h2 style="margin:12px 0 6px">页面安全凭证已过期</h2>
+  <p style="color:var(--muted);max-width:460px;margin:0 auto 18px">
+    出于安全考虑，本站会校验表单的安全凭证。你打开的页面停留时间过长，
+    或登录状态发生了变化，凭证已失效——内容没有被提交。
+    请<span style="color:var(--text)">刷新或重新打开页面</span>后重新填写提交。
+  </p>
+  <p style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+    {% if back_url %}<a class="btn btn-brass" href="{{ back_url }}">返回上一页重新填写</a>{% endif %}
+    <a class="btn" href="javascript:history.back()">后退</a>
+    <a class="btn" href="/index">回首页</a>
+  </p>
+</div>
+{% endblock %}

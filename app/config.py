@@ -95,8 +95,13 @@ class Config:
     # --- 会话 / 安全 ---
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = _bool("COOKIE_SECURE", "1")  # 生产 HTTPS 下保持开启
+    _cookie_secure = _bool("COOKIE_SECURE", "1")  # 生产 HTTPS 下保持开启
+    SESSION_COOKIE_SECURE = _cookie_secure
     SESSION_COOKIE_NAME = "s1914"
+    # 生产（COOKIE_SECURE=1）默认强制 HTTP → HTTPS：
+    # Secure Cookie 在非 HTTPS 连接上会被浏览器丢弃，导致"部分用户"（经 http
+    # 入口进入者）会话/CSRF 全部失效。本地调试（COOKIE_SECURE=0）自动豁免。
+    FORCE_HTTPS = _bool("FORCE_HTTPS", "1" if _cookie_secure else "0")
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 24 * 14  # 14 天
     WTF_CSRF_SESSION_KEY = "_csrf_token"
 

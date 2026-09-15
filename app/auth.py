@@ -107,6 +107,9 @@ def create_session(user_id: int) -> None:
     session.clear()
     session["sid"] = token
     session["uid"] = user_id
+    # 立即生成新 CSRF 令牌：避免登录后未渲染页面的窗口期内
+    # API 层因 session 无 csrf 而跳过校验
+    session["csrf"] = secrets.token_urlsafe(32)
     session.permanent = True
 
 
@@ -228,17 +231,64 @@ def role_required(*roles):
 
 # ---------- CSRF ----------
 
+class CSRFError(Exception):
+    """CSRF 校验失败。由全局 errorhandler 渲染可恢复的友好页面。"""
+
+
 def csrf_token() -> str:
     if "csrf" not in session:
         session["csrf"] = secrets.token_urlsafe(32)
     return session["csrf"]
 
 
+def _record_csrf_failure(reason: str) -> None:
+    """CSRF 失败的安全诊断日志：只记录布尔特征与来源，不记录任何令牌/会话值。"""
+    try:
+        from . import security
+        token = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
+        origin = request.headers.get("Origin", "").strip()
+        host = (request.host or "").strip()
+        origin_match = ""
+        if origin:
+            try:
+                origin_match = "1" if host in origin.split("://", 1)[-1] else "0"
+            except Exception:
+                origin_match = "?"
+        proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+        security.record_event(
+            security.client_ip(), "csrf_fail",
+            "blocked" if origin_match == "0" else "suspicious",
+            f"path={request.path} method={request.method} reason={reason} "
+            f"session={'1' if session.get('csrf') else '0'} "
+            f"token={'1' if token else '0'} "
+            f"origin={'1' if origin else '0'} origin_match={origin_match or 'none'} "
+            f"referer={'1' if request.referrer else '0'} "
+            f"host={host} proto={proto}")
+    except Exception:
+        pass
+
+
 def check_csrf() -> None:
     token = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
     good = session.get("csrf", "")
-    if not good or not token or not secrets.compare_digest(token, good):
-        abort(400, description="CSRF 校验失败，请刷新页面重试")
+    if token and good and secrets.compare_digest(token, good):
+        # Origin 同源二次校验（加固）：浏览器报告的 Origin 与目标 Host 不一致时
+        # 即使令牌有效也拒绝；Origin 缺失（老浏览器/直跳表单）时跳过不降低可用性
+        origin = request.headers.get("Origin", "").strip()
+        if origin:
+            host = (request.host or "").strip()
+            if host and host not in origin.split("://", 1)[-1]:
+                _record_csrf_failure("origin_mismatch")
+                raise CSRFError("跨站请求被拒绝")
+        return
+    if not good:
+        reason = "no_session"
+    elif not token:
+        reason = "no_token"
+    else:
+        reason = "token_mismatch"
+    _record_csrf_failure(reason)
+    raise CSRFError("CSRF 校验失败，请刷新页面重试")
 
 
 # ---------- 登录限速 ----------
@@ -332,7 +382,12 @@ def register():
     if current_user():
         return redirect(url_for("misc.home"))
     if request.method == "POST":
-        check_csrf()
+        try:
+            check_csrf()
+        except CSRFError:
+            # 可自愈：重渲染注册页（输出当前会话的新令牌，保留非密码字段）
+            flash("页面安全凭证已过期，请重新点击注册；你填写的内容已保留", "danger")
+            return render_template("auth/register.html", values=request.form), 400
         reg_ip = client_ip()
         # 当日名额优先判断：名额用完时应提示"明天再试"，而非 15 分钟限速的文案
         if is_throttled("register_day", reg_ip, REGISTER_DAY_LIMIT,
@@ -405,7 +460,12 @@ def login():
     if current_user():
         return redirect(url_for("misc.home"))
     if request.method == "POST":
-        check_csrf()
+        try:
+            check_csrf()
+        except CSRFError:
+            flash("页面安全凭证已过期，请重新登录", "danger")
+            return render_template("auth/login.html",
+                                   username=request.form.get("username", "")), 400
         ident = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
         ip = client_ip()
@@ -481,7 +541,12 @@ def login():
 
 @bp.route("/logout", methods=["POST"])
 def logout():
-    check_csrf()
+    try:
+        check_csrf()
+    except CSRFError:
+        destroy_session()  # 退出登录无 CSRF 风险，凭证过期也照常登出
+        flash("已退出登录", "success")
+        return redirect(url_for("misc.home"))
     destroy_session()
     flash("已退出登录", "success")
     return redirect(url_for("misc.home"))
@@ -521,7 +586,11 @@ def _recover_user():
 @bp.route("/recover", methods=["GET", "POST"])
 def recover():
     if request.method == "POST":
-        check_csrf()
+        try:
+            check_csrf()
+        except CSRFError:
+            flash("页面安全凭证已过期，请重新输入", "danger")
+            return render_template("auth/forgot.html"), 400
         ident = (request.form.get("ident") or "").strip().lstrip("@")
         if throttle("recover_entry", client_ip(), RECOVER_ENTRY_MAX, 15):
             flash("尝试过于频繁，请稍后再试", "warning")
@@ -559,6 +628,11 @@ def recover_methods():
 
 @bp.route("/recover/email", methods=["POST"])
 def recover_email():
+    try:
+        check_csrf()
+    except CSRFError:
+        flash("页面安全凭证已过期，请返回上一步重新操作", "danger")
+        return redirect(url_for("auth.recover_methods"))
     user = _recover_user()
     if user is None or not user["email"]:
         return redirect(url_for("auth.recover"))
@@ -610,7 +684,12 @@ def recover_question():
         return redirect(url_for("auth.login"))
     error = None
     if request.method == "POST":
-        check_csrf()
+        try:
+            check_csrf()
+        except CSRFError:
+            flash("页面安全凭证已过期，请重新作答", "danger")
+            return render_template("auth/recover_question.html",
+                                   question=user["security_question"]), 400
         answer = request.form.get("answer", "")
         password = request.form.get("password", "")
         confirm = request.form.get("confirm", "")
@@ -652,7 +731,12 @@ def recover_reset():
         return render_template("auth/recover_reset.html", token=None, invalid=True)
     error = None
     if request.method == "POST":
-        auth_check = check_csrf()
+        try:
+            check_csrf()
+        except CSRFError:
+            flash("页面安全凭证已过期，请返回恢复邮件重新打开链接", "danger")
+            return render_template("auth/recover_reset.html", token=token,
+                                   invalid=True), 400
         password = request.form.get("password", "")
         confirm = request.form.get("confirm", "")
         err = check_password_strength(password)

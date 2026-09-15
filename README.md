@@ -182,7 +182,7 @@ scripts/*.ps1          安装 / 初始化 / 启动脚本
 
 ## 安全要点
 
-- SQL 全部参数化；XSS 经 Jinja 自动转义 + bleach 白名单消毒；CSRF 全站强制（表单 + API）
+- SQL 全部参数化；XSS 经 Jinja 自动转义 + bleach 白名单消毒；CSRF 全站强制（表单 + API，含 Origin 同源二次校验），令牌失效时返回可自愈的友好页而非技术错误；生产默认强制 HTTP→HTTPS（FORCE_HTTPS），CSRF 失败写入安全诊断日志（不含令牌值）
 - 密码 Argon2id；会话令牌存库可吊销（封禁/改密强制下线）；Cookie HttpOnly + SameSite + 生产 Secure
 - 登录限速：用户名/IP 双维度，15 分钟窗口 5 次失败锁定；全站每 IP 每秒 30 请求节流
 - 上传：仅图片扩展名 + 魔数嗅探 + Pillow 校验重编码 + 大小限制 + 随机文件名 + nosniff 头

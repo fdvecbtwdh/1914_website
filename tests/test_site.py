@@ -1427,7 +1427,8 @@ class TestAccountRecovery(Base):
         self.assertIn("选择恢复方式", r.get_data(as_text=True))
         self.assertIn("***", r.get_data(as_text=True))   # 邮箱打码显示
         self.set_csrf()
-        r = self.client.post("/recover/email", follow_redirects=False)
+        r = self.client.post("/recover/email", headers=self.csrf_hdr(),
+                             follow_redirects=False)
         self.assertEqual(r.status_code, 302)
         self.assertEqual(len(self.mails), 1)
         import email as email_mod
@@ -1469,7 +1470,7 @@ class TestAccountRecovery(Base):
         self.logout()
         self.set_csrf()
         self._recover_entry("exp")
-        self.client.post("/recover/email")
+        self.client.post("/recover/email", headers=self.csrf_hdr())
         self.sql("UPDATE recovery_tokens SET expires_at='2000-01-01 00:00:00'")
         html = self.client.get("/recover/reset?token=whatever").get_data(as_text=True)
         self.assertIn("无效", html)
@@ -1515,7 +1516,8 @@ class TestAccountRecovery(Base):
         self.set_csrf()
         results = []
         for _ in range(4):
-            results.append(self.client.post("/recover/email", follow_redirects=True)
+            results.append(self.client.post("/recover/email", headers=self.csrf_hdr(),
+                                            follow_redirects=True)
                            .get_data(as_text=True))
         self.assertTrue(any("过于频繁" in h for h in results[2:]))
 
@@ -3282,6 +3284,102 @@ class TestForumBoards(Base):
         # 迁移后仍可在板块页看到
         html = self.client.get("/forum?category=游戏机制").get_data(as_text=True)
         self.assertIn("历史迁移帖标题", html)
+
+
+class TestCSRFHardening(Base):
+    """CSRF 加固：失败可自愈、Origin 同源校验、安全诊断、强制 HTTPS。"""
+
+    def test_register_csrf_failure_self_heals(self):
+        """旧/缺失令牌提交注册 → 友好提示 + 新令牌重渲染 → 重新提交即成功。"""
+        self.set_csrf()
+        r = self.client.post("/register", data={
+            "username": "selfheal", "password": "Passw0rd123",
+            "confirm": "Passw0rd123"}, follow_redirects=False)
+        self.assertEqual(r.status_code, 400)
+        html = r.get_data(as_text=True)
+        self.assertIn("页面安全凭证已过期", html)
+        # 渲染了新令牌（hidden input 有值）且没有创建用户
+        self.assertRegex(html, r'name="csrf_token" value="[^"]+')
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM users")[0]["c"], 0)
+        # 用页面上的新令牌重新提交 → 成功
+        import re
+        token = re.search(r'name="csrf_token" value="([^"]+)"', html).group(1)
+        self.set_csrf(token)
+        r = self.client.post("/register", data={
+            "csrf_token": token, "username": "selfheal",
+            "password": "Passw0rd123", "confirm": "Passw0rd123"},
+            follow_redirects=True)
+        self.assertEqual(
+            self.sql("SELECT COUNT(*) c FROM users WHERE username='selfheal'")[0]["c"], 1)
+
+    def test_csrf_failure_records_safe_diag(self):
+        """失败写诊断事件：含原因布尔，不含令牌值本身。"""
+        self.set_csrf("real-token-value")
+        self.set_csrf()
+        self.client.post("/register", headers={"X-CSRF-Token": "wrong-token"},
+                         data={"username": "diaguser", "password": "Passw0rd123",
+                               "confirm": "Passw0rd123"})
+        events = self.sql("SELECT * FROM security_events WHERE kind='csrf_fail'")
+        self.assertTrue(events)
+        detail = events[-1]["detail"]
+        self.assertIn("reason=token_mismatch", detail)
+        self.assertNotIn("real-token-value", detail)
+        self.assertNotIn("wrong-token", detail)
+
+    def test_origin_mismatch_rejected(self):
+        """Origin 与 Host 不同源 → 即使令牌正确也拒绝，并标记 blocked。"""
+        self.set_csrf()
+        r = self.client.post(
+            "/register", headers={**self.csrf_hdr(), "Origin": "https://evil.example"},
+            data={"username": "evilton", "password": "Passw0rd123",
+                  "confirm": "Passw0rd123"})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.sql("SELECT COUNT(*) c FROM users")[0]["c"], 0)
+        events = self.sql("SELECT level FROM security_events WHERE kind='csrf_fail'")
+        self.assertTrue(any(e["level"] == "blocked" for e in events))
+
+    def test_same_origin_accepted(self):
+        """同源 Origin 不误伤。"""
+        self.set_csrf()
+        r = self.client.post("/register",
+                             headers={**self.csrf_hdr(), "Origin": "http://localhost/"},
+                             data={"username": "sameorigin", "password": "Passw0rd123",
+                                   "confirm": "Passw0rd123"}, follow_redirects=True)
+        self.assertIn("欢迎加入", r.get_data(as_text=True))
+
+    def test_api_csrf_json_error(self):
+        self.register("jsonapi", "Passw0rd123")
+        r = self.client.post("/api/vote/card/1", headers={"X-CSRF-Token": "bad"})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.get_json()["ok"], False)
+        self.assertIn("刷新", r.get_json()["error"])
+
+    def test_logout_without_token_still_logs_out(self):
+        self.register("outy", "Passw0rd123")
+        # 不带 CSRF 头/字段：凭证过期也应完成登出（logout 无 CSRF 风险）
+        with self.client.session_transaction() as s:
+            s["csrf"] = "t"
+        r = self.client.post("/logout", data={})
+        self.assertEqual(r.status_code, 302)
+        page = self.client.get("/index").get_data(as_text=True)
+        self.assertIn("登录", page)  # 已是游客视角
+
+    def test_force_https_redirect_and_local_exempt(self):
+        self.app.config["FORCE_HTTPS"] = True
+        self.app.config["SITE_URL"] = "https://1914.fun"
+        # 经代理的 HTTP 请求 → 308 到 HTTPS
+        r = self.client.get("/index", headers={"Host": "1914.fun",
+                                               "X-Forwarded-Proto": "http"})
+        self.assertEqual(r.status_code, 308)
+        self.assertEqual(r.headers["Location"], "https://1914.fun/index")
+        # HTTPS 请求不重定向
+        ok = self.client.get("/index", headers={"Host": "1914.fun",
+                                                "X-Forwarded-Proto": "https"})
+        self.assertEqual(ok.status_code, 200)
+        # 本地调试豁免
+        local = self.client.get("/index", headers={"Host": "127.0.0.1:8000",
+                                                   "X-Forwarded-Proto": "http"})
+        self.assertEqual(local.status_code, 200)
 
 
 if __name__ == "__main__":

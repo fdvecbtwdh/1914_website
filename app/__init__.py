@@ -6,7 +6,7 @@ from flask import Flask, request, g
 
 from . import db
 from .config import Config
-from .auth import bp as auth_bp, current_user, csrf_token, is_moderator, active_mute
+from .auth import bp as auth_bp, current_user, csrf_token, is_moderator, active_mute, CSRFError
 from .markdown_utils import render_markdown, excerpt
 
 
@@ -190,6 +190,35 @@ def create_app(test_config: dict | None = None) -> Flask:
                 pass
         return ("请求过于频繁，请稍后再试", 429,
                 {"Content-Type": "text/plain; charset=utf-8"})
+
+    # ---- 强制 HTTPS（生产）：经 Cloudflare/Tunnel 的 HTTP 请求 308 到 SITE_URL。
+    # 本地调试（127.0.0.1/localhost）与 COOKIE_SECURE=0 时自动豁免。
+    # 处理器总是注册，每次请求读取配置，便于运行时切换 ----
+    local_hosts = ("127.0.0.1", "localhost", "::1")
+
+    @app.before_request
+    def force_https():
+        if not app.config.get("FORCE_HTTPS"):
+            return None
+        if request.host.split(":")[0] in local_hosts:
+            return None
+        proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+        if proto == "https":
+            return None
+        from flask import redirect
+        target = app.config["SITE_URL"] + request.full_path.rstrip("?")
+        return redirect(target, code=308)
+
+    # ---- CSRF 失败：渲染可恢复的友好页（/api/ 返回 JSON），不再抛技术性 400 文本 ----
+    @app.errorhandler(CSRFError)
+    def csrf_failed(e):
+        message = str(e) or "页面安全凭证已过期"
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
+            from flask import jsonify
+            return jsonify({"ok": False, "error": message}), 400
+        from flask import render_template, request as req
+        back = req.referrer if req.referrer and req.host and req.host in req.referrer else ""
+        return render_template("csrf_expired.html", message=message, back_url=back), 400
 
     # ---- 错误页 ----
     def _error_page(code, message):

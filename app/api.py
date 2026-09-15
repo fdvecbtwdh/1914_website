@@ -27,14 +27,17 @@ def _require_login_json():
 @bp.before_request
 def _csrf_protect():
     """API 写请求必须带 CSRF token（header 或 form）。
-    未登录访客先让视图返回 401；已建立会话的请求强制校验 CSRF。"""
+    未登录访客先让视图返回 401；已建立会话的请求强制校验 CSRF。
+    失败统一抛 CSRFError：/api/ 前缀由全局 handler 返回 JSON。"""
     if request.method in ("POST", "PUT", "DELETE"):
         good = session.get("csrf", "")
         if not good:
             return  # 无会话 → 由视图做登录检查（401）
         token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
         if not token or not _secrets.compare_digest(token, good):
-            abort(400, description="CSRF 校验失败")
+            from .auth import CSRFError, _record_csrf_failure
+            _record_csrf_failure("no_token" if not token else "token_mismatch")
+            raise CSRFError("CSRF 校验失败，请刷新页面重试")
 
 
 # ---------- 投票 ----------
