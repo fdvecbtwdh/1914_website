@@ -43,6 +43,8 @@ class Base(unittest.TestCase):
         }
         self.app = create_app(config)
         self.client = self.app.test_client()
+        from app import speedtest
+        speedtest.reset_state()  # 测速接口的内存记账（预算/频率）逐用例清零
         with self.app.app_context():
             db.init_db(self.app.config["DB_PATH"])
 
@@ -108,7 +110,8 @@ class TestGuestPages(Base):
 
     PAGES = ["/index", "/about", "/cards", "/issues", "/search", "/login",
              "/register", "/robots.txt", "/sitemap.xml", "/cards?sort=hot",
-             "/cards?type=unit&class=infantry&rarity=common", "/issues?status=open"]
+             "/cards?type=unit&class=infantry&rarity=common", "/issues?status=open",
+             "/speedtest", "/nav", "/status"]
 
     def test_guest_pages_200(self):
         for path in self.PAGES:
@@ -1061,10 +1064,11 @@ class TestGameCardSync(Base):
         with self.app.app_context():
             from app.card_sync import import_official_cards
             result = import_official_cards()
-            self.assertEqual(result["created"], 16)
+            # 数量随游戏项目/seed 内容变化，不硬编码：只要求 ≥ seed 基线且二次导入为更新
+            self.assertGreaterEqual(result["created"], 16)
             # 二次导入 = 全部更新
             result2 = import_official_cards()
-            self.assertEqual(result2["updated"], 16)
+            self.assertEqual(result2["updated"], result["created"])
             # 字段精确对照游戏 JSON
             game = json.loads((Path(__file__).parent.parent / "seed" / "cards" / "tank_02.json")
                               .read_text(encoding="utf-8"))
@@ -1179,7 +1183,8 @@ class TestAutoSeed(unittest.TestCase):
         dbp = os.path.join(tempfile.mkdtemp(prefix="1914_seed_"), "a.db")
         app = self._app(dbp)
         with app.app_context():
-            self.assertEqual(db.query("SELECT COUNT(*) n FROM cards", one=True)["n"], 16)
+            # 卡牌数随游戏数据源增长，断言不低于 seed 基线
+            self.assertGreaterEqual(db.query("SELECT COUNT(*) n FROM cards", one=True)["n"], 16)
             self.assertGreaterEqual(db.query("SELECT COUNT(*) n FROM labels", one=True)["n"], 8)
             admin = db.query("SELECT username, role FROM users WHERE username='admin'", one=True)
             self.assertIsNotNone(admin)
@@ -1188,13 +1193,16 @@ class TestAutoSeed(unittest.TestCase):
     def test_reseed_idempotent(self):
         dbp = os.path.join(tempfile.mkdtemp(prefix="1914_seed_"), "a.db")
         self._app(dbp)   # 第一次启动播种
-        self._app(dbp)   # 第二次启动不重复
         import sqlite3
+        conn = sqlite3.connect(dbp)
+        cards_first = conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0]
+        conn.close()
+        self._app(dbp)   # 第二次启动不重复
         conn = sqlite3.connect(dbp)
         cards = conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0]
         users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         conn.close()
-        self.assertEqual((cards, users), (16, 1))
+        self.assertEqual((cards, users), (cards_first, 1))
 
 
 class TestIssueComponentAndTags(Base):
@@ -3257,11 +3265,12 @@ class TestForumBoards(Base):
         # 无普通发帖入口（游客视角）
         self.assertNotIn("发布帖子", html)
         self.assertIn("提案由", html)
-        # 默认未归档 → 已批准提案（归档帖）不显示
-        self.assertNotIn("《火炮》", html)
+        # 默认未归档 → 已批准提案（归档帖）不显示（卡名取自实际导入数据，不硬编码）
+        card_name = f"《{card['name']}》"
+        self.assertNotIn(card_name, html)
         # 已批准筛选可见；已归档可见
         approved = self.client.get(qs + "&pstatus=approved").get_data(as_text=True)
-        self.assertIn("《火炮》", approved)
+        self.assertIn(card_name, approved)
         archived = self.client.get(qs + "&state=archived").get_data(as_text=True)
         self.assertIn("[修改提案]", archived)
         # 讨论中筛选：为空
@@ -3380,6 +3389,109 @@ class TestCSRFHardening(Base):
         local = self.client.get("/index", headers={"Host": "127.0.0.1:8000",
                                                    "X-Forwarded-Proto": "http"})
         self.assertEqual(local.status_code, 200)
+
+
+class TestSpeedTest(Base):
+    """网络测速页与接口：页面/数据量钳制/流量预算/频率限制/并发限制/开关。"""
+
+    MB = 1024 * 1024
+
+    def test_page_has_entry_and_explanation(self):
+        r = self.client.get("/speedtest")
+        html = r.get_data(as_text=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("开始测速", html)
+        self.assertIn("不等于", html)           # 明确不是完整宽带测速
+        self.assertIn("Cloudflare", html)       # 链路说明
+        # 顶栏导航 + sitemap 收录
+        self.assertIn('href="/speedtest"', html)
+        self.assertIn("/speedtest", self.client.get("/sitemap.xml").get_data(as_text=True))
+
+    def test_ping_json(self):
+        r = self.client.get("/api/speedtest/ping")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json(), {"ok": True})
+        self.assertIn("no-store", r.headers["Cache-Control"])
+
+    def test_ping_rate_limited(self):
+        self.app.config["SPEEDTEST_PING_LIMIT"] = 3
+        for _ in range(3):
+            self.assertEqual(self.client.get("/api/speedtest/ping").status_code, 200)
+        r = self.client.get("/api/speedtest/ping")
+        self.assertEqual(r.status_code, 429)
+        self.assertFalse(r.get_json()["ok"])
+
+    def test_download_exact_bytes(self):
+        r = self.client.get(f"/api/speedtest/download?size={256 * 1024}")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["Content-Length"], str(256 * 1024))
+        self.assertEqual(len(r.get_data()), 256 * 1024)
+        self.assertTrue(r.content_type.startswith("application/octet-stream"))
+        self.assertIn("no-store", r.headers["Cache-Control"])
+
+    def test_download_size_clamped(self):
+        # 超大请求被钳到 32MB（防止绕过前端打爆服务器），过小请求钳到 64KB 下限
+        big = self.client.get(f"/api/speedtest/download?size={999 * self.MB}")
+        self.assertEqual(big.headers["Content-Length"], str(32 * self.MB))
+        tiny = self.client.get("/api/speedtest/download?size=1")
+        self.assertEqual(tiny.headers["Content-Length"], str(64 * 1024))
+        # 非法参数回退默认 1MB
+        bad = self.client.get("/api/speedtest/download?size=abc")
+        self.assertEqual(bad.headers["Content-Length"], str(self.MB))
+
+    def test_download_budget_exhausted(self):
+        self.app.config["SPEEDTEST_DL_BUDGET_MB"] = 0  # 预算 0：第一次请求即超限
+        r = self.client.get("/api/speedtest/download?size=1024")
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("流量", r.get_json()["error"])
+
+    def test_upload_counts_bytes(self):
+        payload = b"x" * 12345
+        r = self.client.post("/api/speedtest/upload", data=payload,
+                             content_type="application/octet-stream")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json(), {"ok": True, "bytes": 12345})
+        self.assertIn("no-store", r.headers["Cache-Control"])
+
+    def test_upload_rejects_oversize_and_empty(self):
+        big = self.client.post("/api/speedtest/upload", data=b"x" * (33 * self.MB),
+                               content_type="application/octet-stream")
+        self.assertEqual(big.status_code, 413)
+        empty = self.client.post("/api/speedtest/upload", data=b"",
+                                 content_type="application/octet-stream")
+        self.assertEqual(empty.status_code, 400)
+
+    def test_upload_csrf_required_with_session(self):
+        # 已建立会话（base.html 每页都注入 csrf）→ 上传必须带有效 token
+        self.set_csrf("s3cret")
+        r = self.client.post("/api/speedtest/upload", data=b"xx",
+                             content_type="application/octet-stream")
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(r.get_json()["ok"])
+        good = self.client.post("/api/speedtest/upload", data=b"xx",
+                                content_type="application/octet-stream",
+                                headers={"X-CSRF-Token": "s3cret"})
+        self.assertEqual(good.status_code, 200)
+
+    def test_upload_budget_exhausted(self):
+        self.app.config["SPEEDTEST_UL_BUDGET_MB"] = 0
+        r = self.client.post("/api/speedtest/upload", data=b"xx",
+                             content_type="application/octet-stream")
+        self.assertEqual(r.status_code, 429)
+
+    def test_concurrent_limit(self):
+        self.app.config["SPEEDTEST_MAX_CONCURRENT"] = 0
+        r = self.client.get("/api/speedtest/download?size=1024")
+        self.assertEqual(r.status_code, 503)
+
+    def test_disabled_returns_404(self):
+        self.app.config["SPEEDTEST_ENABLED"] = False
+        for path in ("/speedtest", "/api/speedtest/ping",
+                     "/api/speedtest/download?size=1024"):
+            self.assertEqual(self.client.get(path).status_code, 404, path)
+        r = self.client.post("/api/speedtest/upload", data=b"xx",
+                             content_type="application/octet-stream")
+        self.assertEqual(r.status_code, 404)
 
 
 if __name__ == "__main__":

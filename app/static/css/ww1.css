@@ -420,6 +420,45 @@ table.data tr:hover td { background: rgba(255,255,255,.02); }
   font-size: .86rem; color: var(--text);
 }
 
+/* ---------- 网络测速 ---------- */
+.speed-btn { font-size: 1.05rem; padding: 9px 30px; }
+.speed-actions {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin: 14px 0 6px;
+}
+.speed-phases { display: flex; gap: 8px; flex-wrap: wrap; }
+.speed-phase { transition: background .15s, color .15s; }
+.speed-phase.speed-phase-active {
+  background: var(--olive); border-color: var(--olive);
+  color: #f0f2e0; font-weight: 700;
+}
+.speed-live {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 12px 0 6px; flex-wrap: wrap;
+}
+.speed-live-label { color: var(--text-dim); font-size: .92rem; }
+.speed-value {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 2.3rem; line-height: 1.1; color: var(--brass-bright);
+}
+.speed-unit { color: var(--muted); font-size: .95rem; }
+.speed-result { display: flex; align-items: baseline; gap: 6px; margin: 6px 0 4px; }
+.speed-sub {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  color: var(--text-dim); font-size: .88rem; min-height: 1.4em;
+}
+.speed-notes { margin: 4px 0 0; padding-left: 20px; color: var(--text-dim); font-size: .92rem; }
+.speed-notes li { margin-bottom: 6px; }
+.speed-notes b { color: var(--text); }
+@media (max-width: 760px) {
+  /* 手机端：按钮通栏不超屏、大数字缩小防撑卡 */
+  .speed-btn { width: 100%; text-align: center; }
+  .speed-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+  .speed-phases { justify-content: center; }
+  .speed-value { font-size: 1.9rem; }
+  .speed-live { gap: 6px; }
+}
+
 /* ---------- 视图切换 ---------- */
 .view-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; vertical-align: middle; }
 .view-toggle a {

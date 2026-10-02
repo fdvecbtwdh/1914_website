@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}网络测速 — {{ site_name }}{% endblock %}
+{% block meta_description %}测试当前设备到 1914.fun 服务器的实际链路速度：延迟、下载与上传，经 Cloudflare 网络的真实访问体验参考。{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-title">
+    <h1>网络测速</h1>
+    <span class="sub">当前设备 → 本站服务器的链路实测</span>
+  </div>
+
+  <div class="panel">
+    <h2>📶 链路测速</h2>
+    <p style="margin-top:0">
+      测量你当前设备访问本站的真实体验：<b>请求延迟</b>、<b>下载速度</b>与<b>上传速度</b>，
+      全程约 25 秒，各方向持续约 10 秒。
+      这是「设备 → 本站服务器」的链路测速，<b>不等于</b>你本地宽带的完整带宽。
+    </p>
+
+    <div class="speed-actions">
+      <button class="btn btn-brass speed-btn" id="st-start">开始测速</button>
+      <div class="speed-phases">
+        <span class="badge speed-phase" id="st-phase-ping">① 延迟</span>
+        <span class="badge speed-phase" id="st-phase-dl">② 下载</span>
+        <span class="badge speed-phase" id="st-phase-ul">③ 上传</span>
+      </div>
+    </div>
+
+    <div id="st-error" class="flash flash-danger" style="display:none"></div>
+
+    <div id="st-live" style="display:none">
+      <div class="speed-live">
+        <span class="speed-live-label" id="st-live-label">下载速度</span>
+        <span class="speed-value" id="st-live-speed">—</span>
+        <span class="speed-unit" id="st-live-unit">Mbps</span>
+      </div>
+      <div class="stat-line">
+        <span class="s-label">进度</span>
+        <div class="s-bar"><div class="s-fill" id="st-live-bar"></div></div>
+        <span class="s-val" id="st-live-transferred">0 MB</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="panel speed-card">
+      <h2>⏱ 延迟</h2>
+      <div class="speed-result">
+        <span class="speed-value" id="st-val-ping">—</span>
+        <span class="speed-unit">ms</span>
+      </div>
+      <div class="speed-sub">
+        <span id="st-sub-ping">未测试</span>
+        <span class="badge" id="st-badge-ping" style="display:none"></span>
+      </div>
+    </div>
+    <div class="panel speed-card">
+      <h2>⬇ 下载</h2>
+      <div class="speed-result">
+        <span class="speed-value" id="st-val-dl">—</span>
+        <span class="speed-unit">Mbps</span>
+      </div>
+      <div class="speed-sub">
+        <span id="st-sub-dl">未测试</span>
+        <span class="badge" id="st-badge-dl" style="display:none"></span>
+      </div>
+    </div>
+    <div class="panel speed-card">
+      <h2>⬆ 上传</h2>
+      <div class="speed-result">
+        <span class="speed-value" id="st-val-ul">—</span>
+        <span class="speed-unit">Mbps</span>
+      </div>
+      <div class="speed-sub">
+        <span id="st-sub-ul">未测试</span>
+        <span class="badge" id="st-badge-ul" style="display:none"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="st-summary" style="display:none">
+    <h2>📋 测试摘要</h2>
+    <table class="meta-table">
+      <tr><td>下载消耗</td><td id="st-sum-dl">—</td></tr>
+      <tr><td>上传消耗</td><td id="st-sum-ul">—</td></tr>
+      <tr><td>总耗时</td><td id="st-sum-time">—</td></tr>
+      <tr><td>测试链路</td><td>当前设备 → Cloudflare → Cloudflare Tunnel → 本站服务器</td></tr>
+    </table>
+    <p class="md-hint" style="margin-top:8px">
+      以上为链路实测均值（含建立连接与传输全程），受当时网络波动影响，仅供参考。
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>📖 测速说明</h2>
+    <ul class="speed-notes">
+      <li>本页测试的是「你当前设备 → 本站服务器」的链路性能，<b>不代表</b>本地宽带运营商的全部带宽（Speedtest 等工具测的是到运营商节点的带宽）。</li>
+      <li>本站经 <b>Cloudflare</b> 与 <b>Cloudflare Tunnel</b> 接入，结果包含到 Cloudflare 边缘节点的质量与隧道回源开销；不同地区、不同运营商的数值会有差异。</li>
+      <li>下载与上传各持续约 10 秒，数据块大小按网速自适应（单块最大 32 MB），测速数据由服务器实时生成、不占用网站正常资源。</li>
+      <li>每次测速通常消耗数 MB 至数十 MB 流量；为防止滥用，每 IP 每小时有流量上限，测速通道的并发数也有限制。</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="/static/js/speedtest.js"></script>
+{% endblock %}

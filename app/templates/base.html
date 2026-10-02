@@ -31,6 +31,7 @@
       <a href="/forum" {% if request.path.startswith('/forum') %}class="active"{% endif %}>论坛</a>
       <a href="/search" {% if request.path == '/search' %}class="active"{% endif %}>搜索</a>
       <a href="/status" {% if request.path.startswith('/status') %}class="active"{% endif %}>状态</a>
+      <a href="/speedtest" {% if request.path.startswith('/speedtest') %}class="active"{% endif %}>测速</a>
     </nav>
     <div class="header-actions">
       {% if current_user %}
@@ -92,5 +93,6 @@
 </footer>
 <script type="application/json" id="card-tag-descs">{{ card_tag_descs|tojson }}</script>
 <script src="/static/js/main.js"></script>
+{% block page_scripts %}{% endblock %}
 </body>
 </html>

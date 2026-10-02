@@ -75,6 +75,18 @@ class Config:
     # --- 状态页采样 ---
     STATUS_SAMPLER_ENABLED = _bool("STATUS_SAMPLER_ENABLED", "1")
 
+    # --- 网络测速（/speedtest，可选）---
+    # 测的是"访客设备 → 本站服务器"的链路（经 Cloudflare/Cloudflare Tunnel），
+    # 不是访客本地宽带的完整测速。防滥用默认值适合家用宽带 + Tunnel 部署：
+    SPEEDTEST_ENABLED = _bool("SPEEDTEST_ENABLED", "1")
+    # 每 IP 每小时允许消耗的测速流量（下载/上传，MB），超出后该小时返回 429
+    SPEEDTEST_DL_BUDGET_MB = int(os.environ.get("SPEEDTEST_DL_BUDGET_MB", "512"))
+    SPEEDTEST_UL_BUDGET_MB = int(os.environ.get("SPEEDTEST_UL_BUDGET_MB", "128"))
+    # 同时进行的测速数据传输（下载+上传请求合计）上限；waitress 8 线程时留出线程给正常访问
+    SPEEDTEST_MAX_CONCURRENT = int(os.environ.get("SPEEDTEST_MAX_CONCURRENT", "4"))
+    # 延迟探测频率限制：每 IP 每 5 分钟最多次数（一次完整测速用 10 次）
+    SPEEDTEST_PING_LIMIT = int(os.environ.get("SPEEDTEST_PING_LIMIT", "40"))
+
     # --- 空数据库自动播种（官方卡牌 + 标签 + 初始管理员 admin/随机密码） ---
     AUTO_SEED = _bool("AUTO_SEED", "1")
 

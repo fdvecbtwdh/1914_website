@@ -104,7 +104,8 @@ def robots_txt():
 def sitemap():
     base = current_app.config["SITE_URL"]
     urls = [(f"{base}/index", "1.0"), (f"{base}/about", "0.6"),
-            (f"{base}/cards", "0.9"), (f"{base}/issues", "0.9")]
+            (f"{base}/cards", "0.9"), (f"{base}/issues", "0.9"),
+            (f"{base}/speedtest", "0.5")]
     for r in db.query("SELECT id, updated_at FROM cards WHERE status='visible' "
                       "ORDER BY id DESC LIMIT 2000"):
         urls.append((f"{base}/card/{r['id']}", "0.7"))

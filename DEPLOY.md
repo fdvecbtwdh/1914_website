@@ -183,6 +183,15 @@ COOKIE_SECURE=1
 # 只监听本机：站点仅通过 Tunnel 对外，不暴露局域网端口
 HOST=127.0.0.1
 PORT=8000
+
+# 网络测速 /speedtest（可选；以下为默认值，按服务器上行带宽调整）
+# 测"访客设备 → 本站服务器"链路（经 Cloudflare/Tunnel）；测速流量走服务器真实带宽，
+# 家用宽带上行小的话可调低 SPEEDTEST_UL_BUDGET_MB，或 SPEEDTEST_ENABLED=0 整体关闭
+SPEEDTEST_ENABLED=1
+SPEEDTEST_DL_BUDGET_MB=512
+SPEEDTEST_UL_BUDGET_MB=128
+SPEEDTEST_MAX_CONCURRENT=4
+SPEEDTEST_PING_LIMIT=40
 ```
 
 **5.1 生成随机密钥**（在 PowerShell 里执行，把输出复制进 .env）：
