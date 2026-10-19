@@ -1,4 +1,4 @@
-﻿# 1914.fun 代码同步脚本：本地改 → 打包上传 → 重启服务 → 健康检查
+# 1914.fun 代码同步脚本：本地改 → 打包上传 → 重启服务 → 健康检查
 #
 # 用法（在项目目录或任意位置，普通 PowerShell 即可，不需要管理员）：
 #   powershell -ExecutionPolicy Bypass -File scripts\push.ps1
@@ -43,13 +43,26 @@ function Ok($m)   { Write-Host "[ok] $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "[!] $m" -ForegroundColor DarkYellow }
 function Fail($m) { Write-Host "[x] $m" -ForegroundColor Red; exit 1 }
 
+# 让中文在 UTF-8 与 GBK 控制台下都不会乱码（PS 5.1 默认按控制台代码页输出）
+try {
+    chcp 65001 > $null
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch { }
+
 # ---------- 1. 本地校验 ----------
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Fail "找不到 git" }
 if (-not (Test-Path (Join-Path $root "app"))) { Fail "当前目录不像项目根：$root" }
 
 $branch = (& git rev-parse --abbrev-ref HEAD) 2>$null
 $commit = (& git rev-parse --short HEAD) 2>$null
-$dirty = @(& git status --porcelain)
+# 这些文件本来就不打包上传（见下面 tar 排除表），不该挡住部署
+$dirtyIgnored = @('.zcodeignore')
+$dirty = @(& git status --porcelain | Where-Object {
+    $line = "$_".Trim()
+    if ($line.Length -le 2) { return $false }
+    $path = $line.Substring(2).Trim().Trim('"')
+    ($dirtyIgnored -notcontains $path) -and ($line -notmatch '^\?\? \.run/')
+})
 if ($dirty.Count -gt 0 -and -not $Force) {
     $dirty | Select-Object -First 10 | ForEach-Object { Write-Host "      $_" -ForegroundColor DarkGray }
     Fail ("工作区有 {0} 处未提交改动。先 git commit，或加 -Force 强行部署" -f $dirty.Count)
@@ -96,8 +109,8 @@ if ($LASTEXITCODE -ne 0) { Fail "SSH 连不上 $target（检查网络或公钥�
 Ok "SSH 连通 $target"
 
 $backupName = "backup-$ts.tar.gz"
-$backupCmd = "cd /d $RemoteRoot && tar -czf backups\$backupName app enigma_site"
-& ssh -o BatchMode=yes $target $backupCmd 2>&1 | Out-Null
+$remoteBackup = "$RemoteRoot\backups\$backupName"
+& ssh -o BatchMode=yes $target "tar -czf $remoteBackup -C $RemoteRoot app enigma_site" 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Warn "远程备份失败（继续部署，但这次没有回滚点）"
 } else {
@@ -112,9 +125,10 @@ $dest = "{0}:{1}/{2}" -f $target, $remoteSlash, $remoteTmpName
 if ($LASTEXITCODE -ne 0) { Fail "上传失败：$dest" }
 Ok "上传完成"
 
-$extractCmd = "cd /d $RemoteRoot && tar -xzf $remoteTmpName && del $remoteTmpName"
-& ssh -o BatchMode=yes $target $extractCmd 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Fail "远程解包失败（临时包保留在 $RemoteRoot\$remoteTmpName）" }
+$remoteTmpPath = "$RemoteRoot\$remoteTmpName"
+& ssh -o BatchMode=yes $target "tar -xzf $remoteTmpPath -C $RemoteRoot" 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { Fail "远程解包失败（临时包保留在 $remoteTmpPath）" }
+& ssh -o BatchMode=yes $target "del `"$remoteTmpPath`"" 2>&1 | Out-Null
 Ok "解包覆盖完成"
 Remove-Item $archive -Force
 
