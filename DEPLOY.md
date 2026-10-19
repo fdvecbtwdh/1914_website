@@ -35,6 +35,41 @@
 
 ---
 
+## 🔁 日常发版：本地改 → 上传 → 重启
+
+`scripts\deploy.ps1` 只在**新机器装机**时用一次。以后改代码在开发机的仓库里做，
+由 `scripts\push.ps1` 负责把工作区同步到服务器并重启服务：
+
+```powershell
+# 在本地仓库根目录（只需普通 PowerShell，不需要管理员）
+powershell -ExecutionPolicy Bypass -File scripts\push.ps1
+```
+
+它依次做这些事：
+
+1. 校验 git 工作区干净（有未提交改动就拒绝，`-Force` 可强行放行）、本地 Python 语法能编译
+2. `tar` 打包工作区，排除 `.git/.venv/data/backups/logs/__pycache__/*.db/.env`（不会覆盖服务器上的数据库和 `.env`）
+3. 服务器先把 `app`、`enigma_site` 打成 `backups\backup-<时间戳>.tar.gz`
+4. `scp` 上传 → 远程 `tar` 解包覆盖 → 删除临时包
+5. `Restart-Service 1914site` → 轮询健康检查（源站 `127.0.0.1:8000` 通了再看公网）
+
+常用参数：
+
+```powershell
+-Force         # 工作区有未提交改动也部署（默认拒绝）
+-NoRestart     # 只传文件不重启，适合配合手工验证
+-SkipChecks    # 跳过 Python 语法检查
+-DryRun        # 只打包并列出文件，不传不重启
+```
+
+回滚：ssh 到服务器，在 `E:\#Code\1914_website` 下执行
+`tar -xzf backups\backup-<时间戳>.tar.gz`，然后 `Restart-Service 1914site`。
+
+> 约定：**只有从本地仓库改动、并且已经 commit 的内容才算上线候选**。
+> 不要在服务器上手改文件——下一次 `push.ps1` 会把本地版本覆盖上去。
+
+---
+
 ## 目录
 
 1. [准备清单](#1-准备清单)

@@ -12,6 +12,21 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1
 
 If fast path succeeds (final line "部署完成"), skip to VERIFY.
 
+## Redeploy after the first install (run on the DEV machine, not the server)
+
+Never edit files on the server: `scripts\push.ps1` overwrites them from the local repo.
+
+```powershell
+cd <repo>
+powershell -ExecutionPolicy Bypass -File scripts\push.ps1
+```
+
+What it does: refuses if the git worktree has uncommitted changes (`-Force` overrides) -> python bytecode check -> `tar` the worktree excluding `.git/.venv/data/backups/logs/__pycache__/*.db/.env` -> remote backup to `backups\backup-<ts>.tar.gz` -> `scp` + remote `tar -xzf` -> `Restart-Service 1914site` -> poll `http://127.0.0.1:8000/` then the public URL.
+
+Flags: `-Force` (deploy dirty worktree) `-NoRestart` `-SkipChecks` `-DryRun` `-Server/-RemoteUser/-RemoteRoot/-Service/-PublicUrl`.
+
+Rollback on the server: `tar -xzf backups\backup-<ts>.tar.gz` in the deploy root, then `Restart-Service 1914site`.
+
 ## Manual fallback
 
 ### 1. Python
