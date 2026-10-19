@@ -1,4 +1,4 @@
-# 1914.fun 代码同步脚本：本地改 → 打包上传 → 重启服务 → 健康检查
+﻿# 1914.fun 代码同步脚本：本地改 → 打包上传 → 重启服务 → 健康检查
 #
 # 用法（在项目目录或任意位置，普通 PowerShell 即可，不需要管理员）：
 #   powershell -ExecutionPolicy Bypass -File scripts\push.ps1
