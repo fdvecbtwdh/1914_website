@@ -13,9 +13,13 @@ NAV_ITEMS = [
     ("🎮", "1914 仓库", "游戏源码 · GitHub（1914）", "https://github.com/fdvecbtwdh/1914"),
     ("🐙", "网页仓库", "本站源码 · GitHub（1914_website）",
      "https://github.com/fdvecbtwdh/1914_website"),
+    ("📖", "AZ 背单词", "英语电子词典 · FSRS 记忆复习 · 词书与导入", "/az/"),
+    ("🔐", "恩尼格玛密码机", "二战 Enigma I · 交互模拟与信号路径教学", "/enigma/"),
 ]
 
 
+@bp.route("/")
 @bp.route("/nav")
 def nav_page():
+    """站点枢纽页。挂在根路径上，`/nav` 作为兼容别名保留。"""
     return render_template("nav.html", items=NAV_ITEMS)

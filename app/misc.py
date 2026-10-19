@@ -7,13 +7,6 @@ from . import db, auth
 bp = Blueprint("misc", __name__)
 
 
-@bp.route("/")
-def home_redirect():
-    """根路径永久重定向到 /index（外链与搜索引擎友好）。"""
-    from flask import redirect, url_for
-    return redirect(url_for("misc.home"), code=301)
-
-
 @bp.route("/index")
 def home():
     # 最新 / 热门卡牌
