@@ -1,0 +1,17 @@
+# Keep repo and worktree on LF so Windows<->server round-trips do not produce fake diffs
+* text=auto eol=lf
+
+# Windows batch files must keep CRLF or cmd.exe breaks on them
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binaries: never touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
